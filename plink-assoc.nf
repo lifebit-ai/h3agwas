@@ -41,6 +41,13 @@ params.each { parm ->
 def params_help = new LinkedHashMap(helps)
 
 
+Channel.fromPath(params.vcf)
+        .ifEmpty { exit 1, "VCF file not found: ${params.vcf}" }
+        .set { vcf }
+Channel.fromPath(params.fam)
+        .ifEmpty { exit 1, "fam file not found: ${params.fam}" }
+        .set { fam }
+
 params.queue      = 'batch'
 params.work_dir   = "$HOME/h3agwas"
 params.input_dir  = "${params.work_dir}/input"
@@ -180,9 +187,6 @@ checker = { fn ->
 
 
 
-bed = Paths.get(params.input_dir,"${params.input_pat}.bed").toString()
-bim = Paths.get(params.input_dir,"${params.input_pat}.bim").toString()
-fam = Paths.get(params.input_dir,"${params.input_pat}.fam").toString()
 
 
 
@@ -197,11 +201,24 @@ prune_in_ch = Channel.create()
 assoc_ch  = Channel.create()
 raw_src_ch= Channel.create()
 
-Channel
-    .from(file(bed),file(bim),file(fam))
-    .buffer(size:3)
-    .map { a -> [checker(a[0]), checker(a[1]), checker(a[2])] }
-    .set { raw_src_ch }
+process plink {
+  publishDir 'results'
+
+  input:
+  file vcf from vcf
+  file fam from fam
+
+  output:
+  set file('*.bed'), file('*.bim'), file('*.fam') into raw_src_ch
+
+
+  script:
+  """
+  plink --vcf $vcf
+  rm plink.fam
+  mv $fam plink.fam
+  """
+}
 
 
 println "\nTesting data            : ${params.input_pat}\n"
