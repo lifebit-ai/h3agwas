@@ -28,7 +28,7 @@ import java.nio.file.Paths
 
 def helps = [ 'help' : 'help' ]
 
-allowed_params = ["input_dir","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","chi2","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "AMI", "instanceType", "instance-type", "bootStorageSize", "boot-storage-size", "maxInstances", "max-instances", "other_mem_req", "sharedStorageMount", "shared-storage-mount", "max_plink_cores", "pheno","big_time","thin","adjust","mperm"]
+allowed_params = ["vcf", "input_dir","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","chi2","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "AMI", "instanceType", "instance-type", "bootStorageSize", "boot-storage-size", "maxInstances", "max-instances", "other_mem_req", "sharedStorageMount", "shared-storage-mount", "max_plink_cores", "pheno","big_time","thin","adjust","mperm"]
 
 
 
@@ -40,10 +40,14 @@ params.each { parm ->
 
 def params_help = new LinkedHashMap(helps)
 
+if (params.vcf){
+  Channel.fromPath(params.vcf)
+        .ifEmpty { exit 1, "VCF file not found: ${params.vcf}" }
+        .set { vcf }
+}
 
 params.queue      = 'batch'
 params.work_dir   = "$HOME/h3agwas"
-params.input_dir  = "${params.work_dir}/input"
 params.output_dir = "${params.work_dir}/results"
 params.output_testing = "cleaned"
 params.thin       = ""
@@ -79,8 +83,7 @@ params.gemma_relopt = 1
 params.gemma_lmmopt = 4
 
 
-params.input_pat  = 'raw-GWA-data'
-
+input_pat = "sampleA"
 params.sexinfo_available = "false"
 
 
@@ -95,7 +98,7 @@ other_mem_req = params.other_mem_req
 params.help = false
 
 
-data_ch = Channel.fromPath(params.data)
+Channel.fromPath(params.data).into{data_ch; data}
 
 if (params.help) {
     params.each {
@@ -178,18 +181,6 @@ checker = { fn ->
 }
 
 
-
-
-bed = Paths.get(params.input_dir,"${params.input_pat}.bed").toString()
-bim = Paths.get(params.input_dir,"${params.input_pat}.bim").toString()
-fam = Paths.get(params.input_dir,"${params.input_pat}.fam").toString()
-
-
-
-
-
-
-
 gemma_assoc_ch = Channel.create()
 
 pca_in_ch = Channel.create()
@@ -197,14 +188,47 @@ prune_in_ch = Channel.create()
 assoc_ch  = Channel.create()
 raw_src_ch= Channel.create()
 
-Channel
+if(params.input_dir){
+  bed = Paths.get(params.input_dir,"${params.input_pat}.bed").toString()
+  bim = Paths.get(params.input_dir,"${params.input_pat}.bim").toString()
+  fam = Paths.get(params.input_dir,"${params.input_pat}.fam").toString()
+  Channel
     .from(file(bed),file(bim),file(fam))
     .buffer(size:3)
     .map { a -> [checker(a[0]), checker(a[1]), checker(a[2])] }
     .set { raw_src_ch }
+}
 
 
-println "\nTesting data            : ${params.input_pat}\n"
+
+
+
+
+
+
+if(params.vcf){
+  process plink {
+  publishDir 'results'
+
+  input:
+  file vcf from vcf
+  file fam from data
+
+  output:
+  set file('*.bed'), file('*.bim'), file('*.fam') into raw_src_ch
+
+  script:
+  """
+  sed '1d' $fam > tmpfile; mv tmpfile $fam
+  plink --vcf $vcf
+  rm plink.fam
+  mv $fam plink.fam
+  """
+  }
+}
+
+testing_data = params.vcf ? params.vcf : params.input_pat
+println "\nTesting data            : ${testing_data}\n"
 println "Testing for phenotypes  : ${params.pheno}\n"
 println "Using covariates        : ${params.covariates}\n\n"
 
