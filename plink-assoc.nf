@@ -312,8 +312,7 @@ process drawPCA {
     input:
       set file(eigvals), file(eigvecs) from pca_out_ch
     output:
-      file (output) into report_pca_ch
-      file("${base}-pca.png") into pca_viz
+    file(output) into ( report_pca_ch, pca_viz )
 
     script:
       base=eigvals.baseName
@@ -600,6 +599,7 @@ process visualisations {
 
     input:
     file plots from viz.collect()
+    file pca from pca_viz
 
     output:
     file '.report.json' into results
@@ -610,6 +610,7 @@ process visualisations {
 
     # delete empty logistic Manhatten plots
     sed -i '/cleaned-logistic-man*/d' images.txt
+    sed -i '/${pca}/d' images.txt
 
     phe_regex="-([a-zA-Z]+).png"
     plot_regex="cleaned-[a-z]+-([a-z]+)"
@@ -619,6 +620,8 @@ process visualisations {
     for image in \$(cat images.txt); do
 
       prefix="\${image%.*}"
+      pca=$pca
+      pca_prefix="\${pca%.*}"
       [[ \$image =~ \$phe_regex ]]; phe="\${BASH_REMATCH[1]}"
       [[ \$image =~ \$plot_regex ]]; plot="\${BASH_REMATCH[1]}"
       [[ \$image =~ \$test_regex ]]; test="\${BASH_REMATCH[1]}"
@@ -642,6 +645,7 @@ process visualisations {
       
     done
 
+    img2json.py "results/${pca}" "Principal Components Analysis" "\${pca_prefix}.json"
     combine_reports.py .
     """
 }
