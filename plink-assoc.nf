@@ -638,7 +638,7 @@ process visualisations {
       fi
 
       title="\$plot plot testing the phenotype \$phe using \$test test from PLINK"
-      img2json.py \$image "\$title" "\${prefix}.json"
+      img2json.py "results/\${image}" "\$title" "\${prefix}.json"
       
     done
 
