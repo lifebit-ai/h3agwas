@@ -66,17 +66,17 @@ outfname = params.output_testing
 params.mperm = 1000
 
 /* Adjust for multiple correcttion */
-params.adjust = 0
+params.adjust = 1
 
 supported_tests = ["chi2","fisher","model","cmh","linear","logistic"]
 
 
-params.chi2     = 0
+params.chi2     = 1
 params.fisher   = 0
 params.cmh     =  0
 params.model   =  0
 params.linear   = 0
-params.logistic = 0
+params.logistic = 1
 params.gemma = 0
 params.gemma_mem_req = "6GB"
 params.gemma_relopt = 1
@@ -208,7 +208,7 @@ if(params.input_dir){
 
 if(params.vcf){
   process plink {
-  publishDir 'results'
+  publishDir "${params.output_dir}/plink", mode: 'copy'
 
   input:
   file vcf from vcf
@@ -307,18 +307,21 @@ process computePCA {
 }
 
 process drawPCA {
+    publishDir "${params.output_dir}", mode: 'copy'
+
     input:
       set file(eigvals), file(eigvecs) from pca_out_ch
     output:
       file (output) into report_pca_ch
-    publishDir params.output_dir, overwrite:true, mode:'copy',pattern: "*.pdf"
+      file("${base}-pca.png") into pca_viz
+
     script:
       base=eigvals.baseName
       cc_fname = 0
       cc       = 0
       col      = 0
       // also relies on "col" defined above
-      output="${base}-pca.pdf"
+      output="${base}-pca.png"
       template "drawPCA.py"
 
 }
@@ -530,11 +533,14 @@ if (params.chi2+params.fisher+params.logistic+params.linear > 0) {
   log_out_ch.subscribe { println "Completed plink test ${it[0]}" }
  
   process drawPlinkResults { 
+    publishDir "${params.output_dir}", mode: 'copy', pattern: "*png"
+    publishDir "${params.output_dir}/latex", mode: 'copy', pattern: "*tex"
+
     input:
     set val(test), val(pheno_name), file(results) from out_ch.tap(log_out_ch)
     output:
       set file("${base}*man*png"), file ("${base}*qq*png"), file("C050*tex") into report_plink, viz
-    publishDir params.output_dir
+    
     script:
       base="cleaned-${test}"
       """
@@ -570,10 +576,11 @@ else
 report_ch = report_ch.mix(report_pca_ch)
 
 process doReport {
+  publishDir "${params.output_dir}", mode: 'copy'
+
   label 'latex'
   input:
     file(reports) from report_ch.toList()
-  publishDir params.output_dir
   output:
     file("${out}.pdf") into final_report_ch
   script:
@@ -587,7 +594,7 @@ process doReport {
 }
 
 process visualisations {
-    publishDir "${params.output}/Visualisations", mode: 'copy'
+    publishDir "${params.output_dir}/Visualisations", mode: 'copy'
 
     container 'lifebitai/vizjson:latest'
 
