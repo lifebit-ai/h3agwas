@@ -533,12 +533,12 @@ if (params.chi2+params.fisher+params.logistic+params.linear > 0) {
     input:
     set val(test), val(pheno_name), file(results) from out_ch.tap(log_out_ch)
     output:
-      set file("${base}*man*pdf"), file ("${base}*qq*pdf"), file("C050*tex") into report_plink
+      set file("${base}*man*png"), file ("${base}*qq*png"), file("C050*tex") into report_plink, viz
     publishDir params.output_dir
     script:
       base="cleaned-${test}"
       """
-      plinkDraw.py  C050 $base $test ${pheno_name} $gotcovar pdf
+      plinkDraw.py  C050 $base $test ${pheno_name} $gotcovar png
       """
   }
 
@@ -584,6 +584,59 @@ process doReport {
     images = workflow.container
     texf   = "${out}.tex"
     template "make_assoc_report.py"
+}
+
+process visualisations {
+    publishDir "${params.output}/Visualisations", mode: 'copy'
+
+    container 'lifebitai/vizjson:latest'
+
+    input:
+    file plots from viz.collect()
+
+    output:
+    file '.report.json' into results
+
+    script:
+    """
+    ls *png > images.txt
+
+    # delete empty logistic Manhatten plots
+    sed -i '/cleaned-logistic-man*/d' images.txt
+
+    phe_regex="-([a-zA-Z]+).png"
+    plot_regex="cleaned-[a-z]+-([a-z]+)"
+    test_regex="cleaned-([a-z]+)"
+
+
+    for image in \$(cat images.txt); do
+
+      prefix="\${image%.*}"
+      [[ \$image =~ \$phe_regex ]]; phe="\${BASH_REMATCH[1]}"
+      [[ \$image =~ \$plot_regex ]]; plot="\${BASH_REMATCH[1]}"
+      [[ \$image =~ \$test_regex ]]; test="\${BASH_REMATCH[1]}"
+
+      # set plot name for title
+      if [[ \$plot == "man" ]]; then
+        plot="Manhatten"
+      elif [ \$plot == "qq" ]; then
+        plot="QQ"
+      fi
+
+      # set test name for title
+      if [[ \$test == "assoc" ]]; then
+        test="an association"
+      elif [ \$test == "logistic" ]; then
+        tets="a logistic"
+      fi
+
+      title="\$plot plot testing the phenotype \$phe using \$test test from PLINK"
+      img2json.py \$image "\$title" "\${prefix}.json"
+      
+    done
+
+    combine_reports.py .
+    """
 }
 
 
