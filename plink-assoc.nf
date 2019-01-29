@@ -457,7 +457,7 @@ if (params.gemma == 1) {
     publishDir params.output_dir
     output:
       file("gemma/${out}.log.txt")
-      set val(base), val(our_pheno), file("gemma/${out}.assoc.txt") into gemma_manhatten_ch
+      set val(base), val(our_pheno), file("gemma/${out}.assoc.txt") into gemma_manhattan_ch
     script:
       base = plinks[0].baseName
       covar_opt =  (params.covariates) ?  " -c $covariate" : ""
@@ -473,10 +473,10 @@ if (params.gemma == 1) {
 
 
 
-  process showGemmaManhatten { 
+  process showGemmaManhattan { 
     publishDir params.output_dir
     input:
-      set val(base), val(this_pheno), file(assoc) from gemma_manhatten_ch
+      set val(base), val(this_pheno), file(assoc) from gemma_manhattan_ch
     output:
       file("${out}*")  into report_gemma_ch
     script:
@@ -608,7 +608,7 @@ process visualisations {
     """
     ls *png > images.txt
 
-    # delete empty logistic Manhatten plots
+    # delete empty logistic Manhattan plots
     sed -i '/cleaned-logistic-man*/d' images.txt
     sed -i '/${pca}/d' images.txt
 
@@ -628,7 +628,7 @@ process visualisations {
 
       # set plot name for title
       if [[ \$plot == "man" ]]; then
-        plot="Manhatten"
+        plot="Manhattan"
       elif [ \$plot == "qq" ]; then
         plot="QQ"
       fi
