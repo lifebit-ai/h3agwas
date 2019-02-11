@@ -608,8 +608,6 @@ process visualisations {
     """
     ls *png > images.txt
 
-    # delete empty logistic Manhattan plots
-    sed -i '/cleaned-logistic-man*/d' images.txt
     sed -i '/${pca}/d' images.txt
 
     phe_regex="-([a-zA-Z]+).png"
