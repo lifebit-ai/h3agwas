@@ -26,24 +26,52 @@
 import java.nio.file.Paths
 
 
-def helps = [ 'help' : 'help' ]
+// def helps = [ 'help' : 'help' ]
 
-allowed_params = ["vcf", "input_dir","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","chi2","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "AMI", "instanceType", "instance-type", "bootStorageSize", "boot-storage-size", "maxInstances", "max-instances", "other_mem_req", "sharedStorageMount", "shared-storage-mount", "max_plink_cores", "pheno","big_time","thin","adjust","mperm"]
+// allowed_params = ["vcf", "input_dir","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","chi2","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "AMI", "instanceType", "instance-type", "bootStorageSize", "boot-storage-size", "maxInstances", "max-instances", "other_mem_req", "sharedStorageMount", "shared-storage-mount", "max_plink_cores", "pheno","big_time","thin","adjust","mperm"]
 
 
 
-params.each { parm ->
-  if (! allowed_params.contains(parm.key)) {
-    println "\nUnknown parameter : Check parameter <$parm>\n";
-  }
-}
+// params.each { parm ->
+//   if (! allowed_params.contains(parm.key)) {
+//     println "\nUnknown parameter : Check parameter <$parm>\n";
+//   }
+// }
 
-def params_help = new LinkedHashMap(helps)
+// def params_help = new LinkedHashMap(helps)
 
-if (params.vcf){
+if (params.vcf && params.data){
   Channel.fromPath(params.vcf)
         .ifEmpty { exit 1, "VCF file not found: ${params.vcf}" }
-        .set { vcf }
+        .set { vcf_plink }
+} else if (params.vcf && !params.data){
+  vcfString = params.vcf.replace(',,',',"NA",')
+
+  def jsonSlurper = new groovy.json.JsonSlurper()
+  def vcfsMap = jsonSlurper.parseText(vcfString)
+
+  int count = 0
+  def newFile = new File("./tmp.csv")
+  def vcfs = []
+
+  for ( vcf in vcfsMap.vcf ) {
+        if (count == 0) {
+              newFile.append("VCF,FID,PAT,MAT,${vcf.metadata}")
+        } else {
+              def files = vcf.files as List
+              newFile.append("\n${files[0]},${count},0,0,${vcf.metadata}")
+              vcfs << files[0]
+        }  
+        count++
+  }
+  newFile.createNewFile() 
+
+
+  tmp = file(params.tmp)
+
+  vcfsCh = Channel
+        .fromPath( vcfs )
+        .set { testVcfs }
 }
 
 params.queue      = 'batch'
@@ -66,17 +94,17 @@ outfname = params.output_testing
 params.mperm = 1000
 
 /* Adjust for multiple correcttion */
-params.adjust = 0
+params.adjust = 1
 
 supported_tests = ["chi2","fisher","model","cmh","linear","logistic"]
 
 
-params.chi2     = 0
+params.chi2     = 1
 params.fisher   = 0
 params.cmh     =  0
 params.model   =  0
 params.linear   = 0
-params.logistic = 0
+params.logistic = 1
 params.gemma = 0
 params.gemma_mem_req = "6GB"
 params.gemma_relopt = 1
@@ -97,8 +125,9 @@ other_mem_req = params.other_mem_req
 
 params.help = false
 
-
-Channel.fromPath(params.data).into{data_ch; data}
+if (params.data) {
+  Channel.fromPath(params.data).into{data_ch; data_ch0; data}
+}
 
 if (params.help) {
     params.each {
@@ -201,6 +230,62 @@ if(params.input_dir){
 
 
 
+if (!params.data && params.vcf) {
+  process preprocessing {
+      publishDir 'results'
+      container 'lifebitai/preprocess_gwas:latest'
+
+      input:
+      file vcfs from testVcfs.collect()
+      file tmp
+
+      output:
+      file 'merged.vcf' into vcf_plink
+      file 'sample.phe' into data_ch, data_ch1, data_ch2, data
+
+      script:
+      """
+      # remove square brackets around phenotype data
+      sed 's/[][]//g' $tmp > result.csv
+
+      # remove whitespace & encode phenotypes
+      sed -i -e 's/ //g' result.csv
+      sed -i -e 's/Yes/2/g' result.csv
+      sed -i -e 's/No/1/g' result.csv
+      sed -i -e 's/NA/-9/g' result.csv
+
+      # remove any prexisting columns for sex 
+      if grep -Fq "SEX" result.csv; then
+            awk -F, -v OFS=, 'NR==1{for (i=1;i<=NF;i++)if (\$i=="SEX"){n=i-1;m=NF-(i==NF)}} {for(i=1;i<=NF;i+=1+(i==n))printf "%s%s",\$i,i==m?ORS:OFS}' result.csv > tmp.csv && mv tmp.csv result.csv
+      fi
+      
+      # iterate through urls in csv replacing s3 path with the local one
+      urls="\$(tail -n+2 result.csv | awk -F',' '{print \$1}')"
+      for url in \$(echo \$urls); do
+            vcf="\${url##*/}"
+            sed -i -e "s~\$url~\$vcf~g" result.csv
+      done
+
+      # determine sex of each individual from VCF file & add to csv file
+      echo 'SEX' > sex.txt
+      for vcf in \$(tail -n+2 result.csv | awk -F',' '{print \$1}'); do
+            bcftools index -f \$vcf
+            SEX="\$(bcftools plugin vcf2sex \$vcf)"
+            if [[ \$SEX == *M ]]; then
+                  echo "1" >> sex.txt
+            elif [ \$SEX == *F ]]; then
+                  echo "2" >> sex.txt
+            fi
+      done
+      paste -d, sex.txt result.csv > tmp.csv && mv tmp.csv result.csv
+
+      make_fam.py
+
+      vcfs=\$(tail -n+2 result.csv | awk -F',' '{print \$2}')
+      bcftools merge \$vcfs > merged.vcf
+      """
+  }
+}
 
 
 
@@ -208,10 +293,10 @@ if(params.input_dir){
 
 if(params.vcf){
   process plink {
-  publishDir 'results'
+  publishDir "${params.output_dir}/plink", mode: 'copy'
 
   input:
-  file vcf from vcf
+  file vcf from vcf_plink
   file fam from data
 
   output:
@@ -220,6 +305,8 @@ if(params.vcf){
   script:
   """
   sed '1d' $fam > tmpfile; mv tmpfile $fam
+  # remove contigs eg GL000229.1 to prevent errors
+  sed -i '/^GL/ d' $vcf
   plink --vcf $vcf
   rm plink.fam
   mv $fam plink.fam
@@ -227,7 +314,15 @@ if(params.vcf){
   }
 }
 
-testing_data = params.vcf ? params.vcf : params.input_pat
+//testing_data = params.vcf ? params.vcf : params.input_pat
+if (params.vcf && params.data) { 
+  testing_data = params.vcf 
+} else if (params.vcf && !params.data) { 
+  testing_data = "merged.vcf" 
+}
+else { 
+  testing_data = params.input_pat 
+}
 println "\nTesting data            : ${testing_data}\n"
 println "Testing for phenotypes  : ${params.pheno}\n"
 println "Using covariates        : ${params.covariates}\n\n"
@@ -307,18 +402,20 @@ process computePCA {
 }
 
 process drawPCA {
+    publishDir "${params.output_dir}", mode: 'copy'
+
     input:
       set file(eigvals), file(eigvecs) from pca_out_ch
     output:
-      file (output) into report_pca_ch
-    publishDir params.output_dir, overwrite:true, mode:'copy',pattern: "*.pdf"
+    file(output) into ( report_pca_ch, pca_viz )
+
     script:
       base=eigvals.baseName
       cc_fname = 0
       cc       = 0
       col      = 0
       // also relies on "col" defined above
-      output="${base}-pca.pdf"
+      output="${base}-pca.png"
       template "drawPCA.py"
 
 }
@@ -338,20 +435,20 @@ covariate = ""
 gotcovar  = 0
 pheno     = ""
 
-
-
  
-if (params.data != "") {
+if (params.data || (params.vcf && !params.data)) {
 
-   checker(file(params.data))
+   //checker(file(params.data))
 
    if (params.covariates != "") {
       gotcovar = 1
   }
 
-  data_ch1 = Channel.create()
-  data_ch2 = Channel.create()
-  Channel.fromPath(params.data).separate(data_ch1,data_ch2) { a -> [a,a] } 
+  if (params.data) {
+    data_ch1 = Channel.create()
+    data_ch2 = Channel.create()
+    Channel.fromPath(params.data).separate(data_ch1,data_ch2) { a -> [a,a] } 
+  }
   
   process extractPheno {
     input:
@@ -455,7 +552,7 @@ if (params.gemma == 1) {
     publishDir params.output_dir
     output:
       file("gemma/${out}.log.txt")
-      set val(base), val(our_pheno), file("gemma/${out}.assoc.txt") into gemma_manhatten_ch
+      set val(base), val(our_pheno), file("gemma/${out}.assoc.txt") into gemma_manhattan_ch
     script:
       base = plinks[0].baseName
       covar_opt =  (params.covariates) ?  " -c $covariate" : ""
@@ -471,10 +568,10 @@ if (params.gemma == 1) {
 
 
 
-  process showGemmaManhatten { 
+  process showGemmaManhattan { 
     publishDir params.output_dir
     input:
-      set val(base), val(this_pheno), file(assoc) from gemma_manhatten_ch
+      set val(base), val(this_pheno), file(assoc) from gemma_manhattan_ch
     output:
       file("${out}*")  into report_gemma_ch
     script:
@@ -530,15 +627,18 @@ if (params.chi2+params.fisher+params.logistic+params.linear > 0) {
   log_out_ch.subscribe { println "Completed plink test ${it[0]}" }
  
   process drawPlinkResults { 
+    publishDir "${params.output_dir}", mode: 'copy', pattern: "*png"
+    publishDir "${params.output_dir}/latex", mode: 'copy', pattern: "*tex"
+
     input:
     set val(test), val(pheno_name), file(results) from out_ch.tap(log_out_ch)
     output:
-      set file("${base}*man*pdf"), file ("${base}*qq*pdf"), file("C050*tex") into report_plink
-    publishDir params.output_dir
+      set file("${base}*man*png"), file ("${base}*qq*png"), file("C050*tex") into report_plink, viz
+    
     script:
       base="cleaned-${test}"
       """
-      plinkDraw.py  C050 $base $test ${pheno_name} $gotcovar pdf
+      plinkDraw.py  C050 $base $test ${pheno_name} $gotcovar png
       """
   }
 
@@ -570,10 +670,11 @@ else
 report_ch = report_ch.mix(report_pca_ch)
 
 process doReport {
+  publishDir "${params.output_dir}", mode: 'copy'
+
   label 'latex'
   input:
     file(reports) from report_ch.toList()
-  publishDir params.output_dir
   output:
     file("${out}.pdf") into final_report_ch
   script:
@@ -584,6 +685,62 @@ process doReport {
     images = workflow.container
     texf   = "${out}.tex"
     template "make_assoc_report.py"
+}
+
+process visualisations {
+    publishDir "${params.output_dir}/Visualisations", mode: 'copy'
+
+    container 'lifebitai/vizjson:latest'
+
+    input:
+    file plots from viz.collect()
+    file pca from pca_viz
+
+    output:
+    file '.report.json' into results
+
+    script:
+    """
+    ls *png > images.txt
+
+    sed -i '/${pca}/d' images.txt
+
+    phe_regex="-([a-zA-Z]+).png"
+    plot_regex="cleaned-[a-z]+-([a-z]+)"
+    test_regex="cleaned-([a-z]+)"
+
+
+    for image in \$(cat images.txt); do
+
+      prefix="\${image%.*}"
+      pca=$pca
+      pca_prefix="\${pca%.*}"
+      [[ \$image =~ \$phe_regex ]]; phe="\${BASH_REMATCH[1]}"
+      [[ \$image =~ \$plot_regex ]]; plot="\${BASH_REMATCH[1]}"
+      [[ \$image =~ \$test_regex ]]; test="\${BASH_REMATCH[1]}"
+
+      # set plot name for title
+      if [[ \$plot == "man" ]]; then
+        plot="Manhattan"
+      elif [ \$plot == "qq" ]; then
+        plot="QQ"
+      fi
+
+      # set test name for title
+      if [[ \$test == "assoc" ]]; then
+        test="an association"
+      elif [ \$test == "logistic" ]; then
+        tets="a logistic"
+      fi
+
+      title="\$plot plot testing the phenotype \$phe using \$test test from PLINK"
+      img2json.py "results/\${image}" "\$title" "\${prefix}.json"
+      
+    done
+
+    img2json.py "results/${pca}" "Principal Components Analysis" "\${pca_prefix}.json"
+    combine_reports.py .
+    """
 }
 
 

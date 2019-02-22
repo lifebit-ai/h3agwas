@@ -94,7 +94,7 @@ def draw(pc1,pc2,evecs,labels,phe):
    plt.xlabel("PC1 (variation %4.1f %%)"%pc1,fontsize=15)
    plt.ylabel("PC2 (variation %4.1f %%)"%pc2,fontsize=15)
    plt.tight_layout()
-   plt.savefig(args.output,type="pdf")
+   plt.savefig(args.output,type="png")
    fig, ax = plt.subplots(figsize=(10,8))
 
 
