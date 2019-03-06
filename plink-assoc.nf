@@ -45,8 +45,8 @@ if (params.vcf && params.data){
         .ifEmpty { exit 1, "VCF file not found: ${params.vcf}" }
         .set { vcf_plink }
 } else if (params.vcf && !params.data){
-  vcfString = "'" + params.vcf + "'"
-  //vcfString = params.vcf.replace(',,',',"NA",')
+  // vcfString = "'" + params.vcf + "'"
+  vcfString = params.vcf.replace(',,',',"NA",')
 
   def jsonSlurper = new groovy.json.JsonSlurper()
   def vcfsMap = jsonSlurper.parseText(vcfString)
