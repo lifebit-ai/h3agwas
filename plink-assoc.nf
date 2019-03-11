@@ -52,7 +52,7 @@ if (params.vcf && params.data){
   def vcfsMap = jsonSlurper.parseText(vcfString)
 
   int count = 0
-  def newFile = new File("./tmp.csv")
+  def newFile = new File(params.tmp)
   def vcfs = []
 
   for ( vcf in vcfsMap.vcf ) {
