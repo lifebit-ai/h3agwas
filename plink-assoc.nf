@@ -60,8 +60,8 @@ if (params.vcf && params.data){
               newFile.append("VCF,FID,PAT,MAT,${vcf.metadata}")
         } else {
               def files = vcf.files as List
-              newFile.append("\n${files[0]},${count},0,0,${vcf.metadata}")
-              vcfs << files[0]
+              newFile.append("\n${files.findAll { it.endsWith("vcf.gz") }[0]},${count},0,0,${vcf.metadata}")
+              vcfs << files.findAll { it.endsWith("vcf.gz") }[0]
         }  
         count++
   }
