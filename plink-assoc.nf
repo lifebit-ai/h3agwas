@@ -26,24 +26,53 @@
 import java.nio.file.Paths
 
 
-def helps = [ 'help' : 'help' ]
+// def helps = [ 'help' : 'help' ]
 
-allowed_params = ["vcf", "input_dir","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","chi2","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "AMI", "instanceType", "instance-type", "bootStorageSize", "boot-storage-size", "maxInstances", "max-instances", "other_mem_req", "sharedStorageMount", "shared-storage-mount", "max_plink_cores", "pheno","big_time","thin","adjust","mperm"]
+// allowed_params = ["vcf", "input_dir","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","chi2","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "AMI", "instanceType", "instance-type", "bootStorageSize", "boot-storage-size", "maxInstances", "max-instances", "other_mem_req", "sharedStorageMount", "shared-storage-mount", "max_plink_cores", "pheno","big_time","thin","adjust","mperm"]
 
 
 
-params.each { parm ->
-  if (! allowed_params.contains(parm.key)) {
-    println "\nUnknown parameter : Check parameter <$parm>\n";
-  }
-}
+// params.each { parm ->
+//   if (! allowed_params.contains(parm.key)) {
+//     println "\nUnknown parameter : Check parameter <$parm>\n";
+//   }
+// }
 
-def params_help = new LinkedHashMap(helps)
+// def params_help = new LinkedHashMap(helps)
 
-if (params.vcf){
+if (params.vcf && params.data){
   Channel.fromPath(params.vcf)
         .ifEmpty { exit 1, "VCF file not found: ${params.vcf}" }
-        .set { vcf }
+        .set { vcf_plink }
+} else if (params.vcf && !params.data){
+  // vcfString = "'" + params.vcf + "'"
+  vcfString = params.vcf.replace(',,',',"NA",')
+
+  def jsonSlurper = new groovy.json.JsonSlurper()
+  def vcfsMap = jsonSlurper.parseText(vcfString)
+
+  int count = 0
+  def newFile = new File(params.tmp)
+  def vcfs = []
+
+  for ( vcf in vcfsMap.vcf ) {
+        if (count == 0) {
+              newFile.append("VCF,FID,PAT,MAT,${vcf.metadata}")
+        } else {
+              def files = vcf.files as List
+              newFile.append("\n${files[0]},${count},0,0,${vcf.metadata}")
+              vcfs << files[0]
+        }  
+        count++
+  }
+  newFile.createNewFile() 
+
+
+  tmp = file(params.tmp)
+
+  vcfsCh = Channel
+        .fromPath( vcfs )
+        .set { testVcfs }
 }
 
 params.queue      = 'batch'
@@ -97,8 +126,9 @@ other_mem_req = params.other_mem_req
 
 params.help = false
 
-
-Channel.fromPath(params.data).into{data_ch; data}
+if (params.data) {
+  Channel.fromPath(params.data).into{data_ch; data_ch0; data}
+}
 
 if (params.help) {
     params.each {
@@ -201,6 +231,62 @@ if(params.input_dir){
 
 
 
+if (!params.data && params.vcf) {
+  process preprocessing {
+      publishDir 'results'
+      container 'lifebitai/preprocess_gwas:latest'
+
+      input:
+      file vcfs from testVcfs.collect()
+      file tmp
+
+      output:
+      file 'merged.vcf' into vcf_plink
+      file 'sample.phe' into data_ch, data_ch1, data_ch2, data
+
+      script:
+      """
+      # remove square brackets around phenotype data
+      sed 's/[][]//g' $tmp > result.csv
+
+      # remove whitespace & encode phenotypes
+      sed -i -e 's/ //g' result.csv
+      sed -i -e 's/Yes/2/g' result.csv
+      sed -i -e 's/No/1/g' result.csv
+      sed -i -e 's/NA/-9/g' result.csv
+
+      # remove any prexisting columns for sex 
+      if grep -Fq "SEX" result.csv; then
+            awk -F, -v OFS=, 'NR==1{for (i=1;i<=NF;i++)if (\$i=="SEX"){n=i-1;m=NF-(i==NF)}} {for(i=1;i<=NF;i+=1+(i==n))printf "%s%s",\$i,i==m?ORS:OFS}' result.csv > tmp.csv && mv tmp.csv result.csv
+      fi
+      
+      # iterate through urls in csv replacing s3 path with the local one
+      urls="\$(tail -n+2 result.csv | awk -F',' '{print \$1}')"
+      for url in \$(echo \$urls); do
+            vcf="\${url##*/}"
+            sed -i -e "s~\$url~\$vcf~g" result.csv
+      done
+
+      # determine sex of each individual from VCF file & add to csv file
+      echo 'SEX' > sex.txt
+      for vcf in \$(tail -n+2 result.csv | awk -F',' '{print \$1}'); do
+            bcftools index -f \$vcf
+            SEX="\$(bcftools plugin vcf2sex \$vcf)"
+            if [[ \$SEX == *M ]]; then
+                  echo "1" >> sex.txt
+            elif [ \$SEX == *F ]]; then
+                  echo "2" >> sex.txt
+            fi
+      done
+      paste -d, sex.txt result.csv > tmp.csv && mv tmp.csv result.csv
+
+      make_fam.py
+
+      vcfs=\$(tail -n+2 result.csv | awk -F',' '{print \$2}')
+      bcftools merge \$vcfs > merged.vcf
+      """
+  }
+}
 
 
 
@@ -211,7 +297,7 @@ if(params.vcf){
   publishDir "${params.output_dir}/plink", mode: 'copy'
 
   input:
-  file vcf from vcf
+  file vcf from vcf_plink
   file fam from data
 
   output:
@@ -220,6 +306,8 @@ if(params.vcf){
   script:
   """
   sed '1d' $fam > tmpfile; mv tmpfile $fam
+  # remove contigs eg GL000229.1 to prevent errors
+  sed -i '/^GL/ d' $vcf
   plink --vcf $vcf
   rm plink.fam
   mv $fam plink.fam
@@ -227,7 +315,15 @@ if(params.vcf){
   }
 }
 
-testing_data = params.vcf ? params.vcf : params.input_pat
+//testing_data = params.vcf ? params.vcf : params.input_pat
+if (params.vcf && params.data) { 
+  testing_data = params.vcf 
+} else if (params.vcf && !params.data) { 
+  testing_data = "merged.vcf" 
+}
+else { 
+  testing_data = params.input_pat 
+}
 println "\nTesting data            : ${testing_data}\n"
 println "Testing for phenotypes  : ${params.pheno}\n"
 println "Using covariates        : ${params.covariates}\n\n"
@@ -340,20 +436,20 @@ covariate = ""
 gotcovar  = 0
 pheno     = ""
 
-
-
  
-if (params.data != "") {
+if (params.data || (params.vcf && !params.data)) {
 
-   checker(file(params.data))
+   //checker(file(params.data))
 
    if (params.covariates != "") {
       gotcovar = 1
   }
 
-  data_ch1 = Channel.create()
-  data_ch2 = Channel.create()
-  Channel.fromPath(params.data).separate(data_ch1,data_ch2) { a -> [a,a] } 
+  if (params.data) {
+    data_ch1 = Channel.create()
+    data_ch2 = Channel.create()
+    Channel.fromPath(params.data).separate(data_ch1,data_ch2) { a -> [a,a] } 
+  }
   
   process extractPheno {
     input:
