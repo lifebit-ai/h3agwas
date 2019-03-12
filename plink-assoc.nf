@@ -284,6 +284,23 @@ if (!params.data && params.vcf) {
 
       vcfs=\$(tail -n+2 result.csv | awk -F',' '{print \$2}')
       bcftools merge \$vcfs > merged.vcf
+
+      # check that both cases & controls are present
+      pheno_column=\$(awk 'NR==1 {
+          for (i=1; i<=NF; i++) {
+              f[\$i] = i
+          }
+      }
+      { print \$(f["$params.pheno"])}' sample.phe | tail -n +2)
+
+      controls=\$(echo \$pheno_column | grep -o 1 | wc -l)
+      cases=\$(echo \$pheno_column | grep -o 2 | wc -l)
+
+      if [[ \$controls == *0* || \$cases == *0* ]]
+      then
+        echo "For phenotype: $params.pheno, number of cases: \$cases, number of controls: \$controls\nPlease ensure that you have individuals in both the case and control group"
+        exit 1
+      fi
       """
   }
 }
@@ -304,6 +321,7 @@ if(params.vcf){
   set file('*.bed'), file('*.bim'), file('*.fam') into raw_src_ch
 
   script:
+  tmp.delete()
   """
   sed '1d' $fam > tmpfile; mv tmpfile $fam
   # remove contigs eg GL000229.1 to prevent errors
