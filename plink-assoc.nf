@@ -65,6 +65,9 @@ if (params.vcf && params.data){
         }  
         count++
   }
+  if (count == 2) {
+    exit 1, "Number of individuals = ${count - 1}\nPlease ensure that you have more than individual/input VCF file"
+  }
   newFile.createNewFile() 
 
 
