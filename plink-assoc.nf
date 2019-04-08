@@ -324,7 +324,6 @@ if(params.vcf){
   set file('*.bed'), file('*.bim'), file('*.fam') into raw_src_ch
 
   script:
-  tmp.delete()
   """
   sed '1d' $fam > tmpfile; mv tmpfile $fam
   # remove contigs eg GL000229.1 to prevent errors
