@@ -33,9 +33,6 @@ This version has been run on real data sets and works. However, not all cases ha
 * the reporting assumes you want to do batch/site analysis. If you don't the code works but the report may look a bit odd with some figures repeated.
 
 
-The previous version 1 stable branch was commit bfd8c5a
-(https://github.com/h3abionet/h3agwas/commit/bfd8c5a51ef85481e5590b8dfb3d46b5dd0cc77a)
-
 
 ## Outline of documentation
 
@@ -43,8 +40,8 @@ The previous version 1 stable branch was commit bfd8c5a
 2. Installing the pipeline
 3. A quick start example
 4. The Nextflow configuration file
-5. The QC pipeline: `plink-qc.nf`
-6. A simple association testing pipeline: `plink-assoc.nf`
+5. The QC pipeline: `qc.nf`
+6. A simple association testing pipeline: `assoc.nf`
 7. Converting Illumina genotyping reports to PLINK: `topbottom.nf`
 8. Advanced options: Docker, PBS, Singularity, Amazon EC2
 9. Dealing with errors
@@ -61,7 +58,7 @@ There are three separate workflows that make up *h3agwas*
 
 1. `topbottom.nf`.  Conversion of Illumina genotyping reports with TOP/BOTTOM or FORWARD/REVERSE  calls into PLINK format, aligning the calls.
 
-2. `plink-qc.nf`: Quality control of the data. This is the focus of the pipeline. It takes as input PLINK data and has the following functions
+2. `qc.nf`: Quality control of the data. This is the focus of the pipeline. It takes as input PLINK data and has the following functions
 
    * Sample QC tasks checking:
 
@@ -80,12 +77,12 @@ There are three separate workflows that make up *h3agwas*
        * differential missingness
        * Hardy Weinberg Equilibrium deviations
 
-3.  `plink-assoc.nf`: Association study. A simple analysis association study is done. The purpose of this is to give users an introduction to their data. Real studies, particularly those of the H3A consortium will have to handle compex co-variates and particular population study. We encourage users of our pipeline to submit thieir analysis for the use of other scientists.
+3.  `assoc.nf`: Association study. A simple analysis association study is done. The purpose of this is to give users an introduction to their data. Real studies, particularly those of the H3A consortium will have to handle compex co-variates and particular population study. We encourage users of our pipeline to submit thieir analysis for the use of other scientists.
   * Basic PLINK association tests, producing manhattan and qqplots
   * CMH association test - Association analysis, accounting for clusters
   * permutation testing
   * logistic regression
-  * emmax association testing
+  * Efficient Mixed Model Association testing with gemma, boltlmm or fastlmm
 
 
 
@@ -168,7 +165,7 @@ The following code needs to be installed and placed in a directory on the user's
 * LaTeX. A standard installation of texlive should have all the packages you need. If you are installing a lightweight TeX version, you need the following pacakges which are part of texlive.: fancyhdr, datetime, geometry, graphicx, subfig, listings, longtable, array, booktabs, float, url.
 * python 3.6 or later. pandas, numpy, scipy, matplotlib and openpyxl need to be installed. You can instally these by saying: `pip3 install pandas`  etc
 
-If you want to run the `plink-assoc.nf` pipeline then you should install gemma if you are using those options.
+If you want to run the `assoc.nf` pipeline then you should install gemma if you are using those options.
 
 ## 2.5 Installing the workflow
 
@@ -184,8 +181,8 @@ If we update the workflow, the next time you run it, you will get a warning mess
 
 If you manage the workflow this way, you will run the scripts, as follows
 * `nextflow run h3abionet/h3agwas/topbottom.nf ..... `
-* `nextflow run h3abionet/h3agwas/plink-qc.nf ..... `
-* `nextflow run h3abionet/h3agwas/plink-assoc.nf ..... `
+* `nextflow run h3abionet/h3agwas/qc.nf ..... `
+* `nextflow run h3abionet/h3agwas/assoc.nf ..... `
 
 ### 2.5.2 Managing with Git
 
@@ -196,8 +193,8 @@ Change directory where you want to install the software and say
 This will create a directory called _h3agwas_ with all the necesssary code.
 If you manage the workflow this way, you will run the scripts this way:
 * `nextflow run SOME-PATH/topbottom.nf ..... `
-* `nextflow run SOME-PATH/plink-qc.nf ..... `
-* `nextflow run SOME-PATH/plink-assoc.nf ..... `
+* `nextflow run SOME-PATH/qc.nf ..... `
+* `nextflow run SOME-PATH/assoc.nf ..... `
 
 where _SOME-PATH_ is a relative or absolute path to where the workflow was downloaded.
 
@@ -205,7 +202,7 @@ where _SOME-PATH_ is a relative or absolute path to where the workflow was downl
 
 # 3. Quick start example
 
-This section shows a simple run of the `plink-qc.nf` pipeline that
+This section shows a simple run of the `qc.nf` pipeline that
 should run out of the box if you have installed the software or
 Docker. More details and general configuration will be shown later.
 
@@ -235,14 +232,14 @@ This requires that all software dependancies have been installed.
 
 We also assume the _sample_ directory with data is in the current working directory
 
-`nextflow run h3abionet/h3agwas/plink-qc.nf`
+`nextflow run h3abionet/h3agwas/qc.nf`
 
 
 ### 3.1.2 If you downloaded using Git
 
 Change directory to the directory in which the workflow was downloaded
 
-`nextflow run  plink-qc.nf`
+`nextflow run  qc.nf`
 
 ## 3.2 Remarks
 
@@ -251,13 +248,13 @@ _sampleA.pdf_ file, a record of the analysis can be found.
 
 In order, to run the workflow on another PLINK data set, say _mydata.{bed,bim,fam}_, say
 
-`nextflow run  plink-qc.nf --input_pat mydata`
+`nextflow run  qc.nf --input_pat mydata`
 
-(or `nextflow run  h3abionet/h3agwas/plink-qc.nf --input_pat mydata` : **for simplicity for the rest of the tutorial we'll only present the one way of running the workflow -- you should use the method that is appropriate for you**)
+(or `nextflow run  h3abionet/h3agwas/qc.nf --input_pat mydata` : **for simplicity for the rest of the tutorial we'll only present the one way of running the workflow -- you should use the method that is appropriate for you**)
 
 If the data is another directory, and you want to the data to go elsehwere:
 
-`nextflow run  plink-qc.nf --input_pat mydata --input_dir /data/project10/ --output_dir ~/results `
+`nextflow run  qc.nf --input_pat mydata --input_dir /data/project10/ --output_dir ~/results `
 
 There are many other options that can be passed on the the command-line. Options can also be given in the _config_ file (explained below). We recommend putting options in the configuration file since these can be archived, which makes the workflow more portable
 
@@ -265,7 +262,7 @@ There are many other options that can be passed on the the command-line. Options
 
 Execute 
 
-`nextflow run  plink-qc.nf -profile docker`
+`nextflow run  qc.nf -profile docker`
 
 Please note that the _first_ time you run the workflow using Docker,  the Docker images will be downloaded. *Warning:* This will take about 1GB of bandwidth which will consume bandwidth and will take time depending on your network connection. It is only the first time that the workflow runs that the image will be downloaded.
 
@@ -300,13 +297,13 @@ your config files.
 
 You can use the _-c_ option specify another configuration file in addition to the nextflow.config file
 
-```nextflow run -c data1.config plink-qc.nf```
+```nextflow run -c data1.config qc.nf```
 
 
 **This is highly recommended.** We recommend that you keep the `nextflow.config` file as static as possible, perhaps not even modifying it from the default config. Then  for any
  run or data set, have a much smaller config file that only specifies the changes you want made. The base `nextflow.config` file will typically contain config options that are best set by the h3aGWAS developers (e.g., the names of the docker containers) or default GWAS options that are unlikely to change. In your separate config file, you will specify the run-specific options, such as data sets, directories or particular GWAS parameters you want. Both configuration files should be specified. For example, suppose I create a sub-directory within the directory where the nextflow file is (probably called h3agwas). Within the h3agwas directory I keep my nexflow.config file and the nextflow file itself. From the sub-directory, I run the workflow by saying:
 
-```nextflow run  -c data1.config ../plink-qc.nf```
+```nextflow run  -c data1.config ../qc.nf```
 
 This will automatically use the `nextflow.config` file in either the current or parent directory. Note that the the config files are processed in order: if an option is set into two config files, the latter one takes precedence.
 
@@ -346,7 +343,7 @@ I suggest editing that by removing any lines you don't want to change.
 
 Then you would run your script by saying
 
-`nextflow run -c run10.config plink-qc.nf`
+`nextflow run -c run10.config qc.nf`
 
 The _nextflow.config_ file will automatically be used, except for any additions or changes that are in the _run10.config_ file.
 
@@ -357,7 +354,7 @@ When you run the the scripts there are a number of different options that you mi
 
 Almost all the workflow options that are in the _nextflow.config_ file can also be passed on the command line and they will then override anything in the config like. For example
 
-```nextflow run plink-qc.nf   --cut_miss  0.04```
+```nextflow run qc.nf   --cut_miss  0.04```
 
 sets the maximim allowable per-SNP misisng to 4%. However, this should only be used when debugging and playing round. Rather, keep the options in the auxiliary config file that you save. By putting options on the command line you reduce reproducibility. (Using the parameters that change the mode of the running -- e.g. whether using docker or whether to produce a time line only affects time taken and auxiliary data rather than the substantive results).
 
@@ -376,7 +373,7 @@ Nextflow provides [several options](https://www.nextflow.io/docs/latest/tracing.
 
 * A nice graphic of a run of your workflow
 
-    `nextflow run plink-qc.nf -with-dag quality-d.pdf`
+    `nextflow run qc.nf -with-dag quality-d.pdf`
 
 * A timeline of your workflow and individual processes (produced as an html file).
 
@@ -388,7 +385,7 @@ Nextflow provides [several options](https://www.nextflow.io/docs/latest/tracing.
 
 
 
-# 5 The QC pipeline: `plink-qc.nf`
+# 5 The QC pipeline: `qc.nf`
 
 
 This section describes the various ways in which the pipeline can be run and various options. Usually options are specified in the _nextflow.config_ file (or which ever file you use). However, you can also pass parameters to the Nextflow script on the command-line. Parameters on the command line over-ride any parameters specified in the config file.
@@ -396,8 +393,8 @@ This section describes the various ways in which the pipeline can be run and var
 
 The main pipeline is the PLINK QC pipeline. It takes as input PLINK bed,bim,fam files and performs quality control on  the data according to the parameters specified in the config file.
 
-The Nextflow script file is called *plink-qc.nf*. This could be
-called, for example, by running `nextflow run plink-qc.nf`.
+The Nextflow script file is called *qc.nf*. This could be
+called, for example, by running `nextflow run qc.nf`.
 
 The output of the QC is a set of PLINK files that can be used for GWAS, as well as PDF report that describes the QC steps.
 
@@ -449,6 +446,22 @@ The following parameters control QC
 
 Several of the above parameters make reference to a phenotype file. Of course, these can be to the same phenotype file, but probably using different columns.
 
+### Filtering by GenCall 10 score
+
+If your sample sheet contains a column with the GC10 score (it must be called `10%_GC_Score`), you can filter out all individuals who have a GC10 score below a specified value. 
+
+Please read (the Illumina explanation)[https://www.illumina.com/Documents/products/technotes/technote_gencall_data_analysis_software.pdf] if you are not clear about this.
+
+To do this you need to give a file with the GC10 score (usually it will be in the sample sheet from the sequencing centre). This can either be an Excel or CSV (comma-separated) file.  The header line must contain a column `10%_GC_Score` and a column called `Institute Sample Label` which matches the IDs found in your PLINK file  (an alternative is that there are columns `Sample Label` and `Well` which when concatenated with an underscore give you the ID). The following parameters are relevant
+
+* `samplesheet` : Give the name of the file here. Put 0 (the default) if no samplesheet and then this filtering is not done.
+* `gc10`: this is the gc10 score that will be used as the cut-off. The default is 0.4, which is may be too low, but you should definitely think about it.
+* `idpat`: Naming conventions differ from sequencing centre to sequencing centre. You may be lucky and the ID in the "Institute Sample Label` matches exactly the FID, IID columns in yoour PLINK data, but more often than not, there is some mangling. For example, it's often the case that the "Institute Sample Label" value contains the sample plate, well _and_ your study ID (e.g. WP00030101_H02_BBC3666 -- with the BBC3666 ID being in your PLINK data). The `idpat` specifies a regular expression that is used to extract out the ID you want. Two common patterns that are likely to be used are
+   * `(.*)`  This is the default. This says that the ID as it appears in the sample sheet in the column "Institute Sample Label" _is_ the same as in your PLINK data. If you are so lucky, you need not do anything or even set `idpat` explicitly. 
+   * `.*_(.*)` : this is for the case where the value in "Insitute Sample Label` is in the format PlateLabel_Well_SampleID and it says, ignore everything up to and including the last underscore and then everything else is the ID
+   * If you have something else, you'll have to figure out how to either create a better sample sheet or pick the right regex. For Pythonites, the regular expression should contain exactly one pair of parenthesis which will be used by Python's regex features to extract out the ID.
+
+
 ## 5.4 Performance parameters
 
 There are three parameters that are important control performance. You probably won't need to change this, but feel free.
@@ -465,7 +478,9 @@ A PDF report can be found in the output directory. This describes the process as
 Note that one issue that sometimes occurs in analysis is that there may over time be multple copies of the same file, perhaps with minor differences. To help version control, the PDF report captures the md5 checksums of inputs and outputs.
 
 
-# 6. Simple association test pipeline: `plink-assoc.nf`
+# 6. Simple association test pipeline: `assoc.nf`
+
+This workflow has been extensively expanded by Jean-Tristan Brandenburg
 
 An association study is a complex analysis and each analysis has to consider
 * the disease/phenotype being studied and its mode of inheritance
@@ -476,13 +491,13 @@ For this reason it is difficult to build a high quality, generic pipeline to do 
 
 The purpose of this pipeline is to perform a very superficial initial analysis that can be used as one piece of information to guide a rigorous analysis. Of course, we would encourage users to build their own Nextflow script for their rigorous analysis, perhaps using our script as a start.
 
-Our script, *plink-assoc.nf* takes as input PLINK files that have been through quality control and 
+Our script, *assoc.nf* takes as input PLINK files that have been through quality control and 
 * does a principal component analysis on the data, and produces pictures from that; 
 * performs a simple association test giving odds ratio and  raw and adjusted _p_ values
 
 ## Running
 
-The pipeline is run: `nextflow run plink-assoc.nf`
+The pipeline is run: `nextflow run assoc.nf`
 
 The key options are:
 * `input_dir`, `output_dir`: where input and output goes to and comes from;
@@ -490,25 +505,53 @@ The key options are:
 * `data`: a tab-separated file that contains phenotype data for your particpants. The row is a header line, with one participant per line after that. The first two columns should FID IID followed by any phenotype values you want to use for testing or for covariates. It can contain other data too -- as long as the ones that you need are in this file.
 * `pheno`: a comma-separated list of phenotypes that you want to test. Each phenotype is tested separately. If you wish to do a transform to the phenottype, you can suffix the phenotype with _/function_ where function is a numpy function. For example you might say `--pheno bmi/np.log` which will apply the log function to the phenotype. Any numpy function can be used, typical uses being np.log and np.sqrt. We plan to support user provision of a user-given function.
 * `covariates`: a comma-separated list of phenotypes that you want to use
+* `exclude_snps` option to exclude some snps active just for boltlmm (see `--exclude` in boltlmm manual) : SNP ID must be first column (default none)
+*  `print_pca` : by default pipeline compute and print pca (`print_pca`=1), if you want avoid this step (`print_pca` = 0)
+*  `file_rs_buildrelat` : file with rs list (one by lines) to build genetics models (relatdness), for gemma `-snps` for boltlmm `--modelSnps`
+* `genetic_map_file` : genetic map used in boltlmm 
 
 By default a chi2 test for association is done. But you can do multiple different tests in one run by settintg the appropriate parameter to 1. Note at least one must be set to 1
 
-* `chi2` : should a chi2 test be used (0 or 1)
-* `fisher`: Fisher exact test
-*  `linear`: should linear regreession be used?
-*  `logistic`: should linear regression be used?
-*  `gemma`: should gemma be used?
-*  `gemma_num_cores`: if gemma is used set this up to 8
-*  `gemam_mem_req`: For 10k samples, 2 million SNPs, we needed 4GB of RAM
-
-and then for all the tests except _gemma_, do you want to adjust for multiple testing 
+ * `assoc` : should a chi2 test be used (0 or 1)
+ * `fisher`: Fisher exact test
+ *  `linear`: should linear regreession be used?
+ *  `logistic`: should linear regression be used?
+ *  `gemma`: should gemma be used?
+    *  see [manual](www.xzlab.org/software/GEMMAmanual.pdf)
+    *  `gemma_num_cores`: if gemma is used set this up to 8
+    *  `gemma_mem_req`: For 10k samples, 2 million SNPs, we needed 4GB of RAM (default : 6GB)
+    *  `gemma_mat_rel` : file contains in gemma format matrix relatdness used by gemma  (format 1, see manual), matrix must be in same order than fam file. Avoid computation of relatdness by pipeline. 
+ *  `boltlmm`: should boltlmm be used? 
+    *  see [manual](https://data.broadinstitute.org/alkesgroup/BOLT-LMM/)
+    * if SNPs is higher than 950,000, 950,000 SNPs are chosen randomly to build the model (see --modelSnps option in bolt)
+    * `bolt_covariates_type` : for bolt need to define if covariate is binary (0) or continue (1), a comma-separated list as same order than covariates 
+    * `bolt_ld_score_file` : A table of reference LD scores for boltlmm is needed to calibrate the BOLT-LMM statistic (option in boltlmm --LDscoresFile),to choice a specific column in Ld file you can use `bolt_ld_scores_col` option (by default : LDSCORE) if option is not provided --LDscoresUseChip used.
+    * `bolt_use_missing_cov` : option to "missing indicator method", by default no activate (0), to activate (1) (--covarUseMissingIndic option in boltlmm), which adds indicator variables demarcating missing status as additional covariates.
+    * `bolt_num_cores` if bolt is used set this up to 8
+    * `bolt_mem_req` memory required for boltlmm, (default : 6GB)
+    * impute2 data in bolt  :
+      * bolt_impute2filelist : list of impute2 files, each line contains : `chronumber` `file`, file must be in full pattern
+      *`bolt_impute2fidiid` : list of individual in same order than bolt_impute2filelist
+ *  `fastlmm`: should fastlmm be used?
+    *  see [manual](https://github.com/MicrosoftGenomics/FaST-LMM)
+    * `fastlmm_num_cores`: if fastmll is used set this up to 8
+    * `fastlmm_mem_req`: memory required for fasttlmm (default : 15GB)
+    * `fastlmm_multi` : memory used by fastmll is very big and increase with snp number, option run fastlmm by chromosome, with relatedness matrix computed before with gemma (-gk 1) 
+    * `fastlmmc_bin` : should change binary for fastlmmc (default fastlmmc)
+and then for all the tests except _gemma_, _boltlmm_ and _fastlmm_, do you want to adjust for multiple testing 
 
 * `adjust`: do we want to do explicit testing for Bonferroni correction et al that PLINK odes
 * `mperm`: do you want to test doing permutation testing. If so, how many tests?  By default this is 1000.
 
+with pipeline, do a GxE interaction with Gemma and Plink, arguments :
+  * `gxe` : environmental variables to do gxe analysis with `pheno`, must be coded in 1 and 2 for plink
+  * `gemma_gxe` : GxE interation with gemma [default : 0], see  `covariates` to add covariates in gemma models
+  * `plink_gxe` : GxE interation with plink (see option -gxe, in [plink manual](http://zzz.bwh.harvard.edu/plink/anal.shtml#qtgxe)) [default : 0], no covariate could be provided.
+
+
 For example
 
-```nextflow run plink-assoc.nf --input_pat raw-GWA-data --chi2 1 --logistic 1 --adjust 1```
+```nextflow run assoc.nf --input_pat raw-GWA-data --chi2 1 --logistic 1 --adjust 1```
 
 analyses the files `raw-GWA-data` bed, bim, fam files and performs a chi2 and logistic regression test, and also does multiple testing correction.
 
@@ -562,7 +605,7 @@ e.g. `params.output = "cvd-rawcalls"`
 
 * `chipdescription`: this is a standard file produced by Illumina for your chip which contains not only the chromosome/coordinate of each SNP but also the genomic position (measured in centimorgans). If you don't have this -- give the manifest file. All will work except your bim files will not contain genonomic positoin
 
-* `samplesheet`: This is Excel spreadsheet or CSV (comma-separated only) that Illumina or a genotyping centre provides which details each perfson in the study for whom you have genotyping results. If you don't have it, you can set this variable to 0 or the empty string, in which case the output PLINK fam file will have unknown values for sex and phenotype.  Alternatively, if you don't have it, you can make your own. 
+* `samplesheet`: This is Excel spreadsheet or CSV (comma-separated only) that Illumina or a genotyping centre provides which details each perfson in the study for whom you have genotyping results. If you don't have it, you can set this variable to 0 or the empty string, in which case the output PLINK fam file will have unknown values for sex and phenotype.  Alternatively, if you don't have it, you can make your own. Note that if the suffix is ".xls" or ".xlsx" the code assumes it's an Excel file otherwise a comma-separated set of values.
 
 There are three columns that are important: "Institute Sample Label", "Manifest Sex" and "Batch Comment". These must be there. The _label_ is the ID of the person. In the current workflow this ID is used for both the FID and IID. If you have a family study you may need to manually change the fam file.
 
@@ -636,7 +679,7 @@ In the  quick start we gave an overview of running our workflows in different en
 This option requires that all dependancies have been installed. You run the code by saying
 
 ````
-nextflow run plink-qc.nf
+nextflow run qc.nf
 ````
 
 You can add that any extra parameters at the end.
@@ -645,7 +688,7 @@ You can add that any extra parameters at the end.
 
 This requires the user to have docker installed.
 
-Run by `nextlow run plink-qc.nf -profile docker`
+Run by `nextlow run qc.nf -profile docker`
 
 
 
@@ -655,7 +698,7 @@ Nextflow supports execution on clusters using standard resource managers, includ
 
 Our workflow has pre-built configuration for SLURM and Torque/PBS. If you use another scheduler that Nextflow supports you'll need to do a _little_ more (see later): see https://www.nextflow.io/docs/latest/executor.html for details
 
-To run using Torque/PBS, log into the head node. Edit the _nextflow.config_ file, and change the `queue` variable to be the queue you will run jobs on (if you're not sure of this, ask your friendly sysadmin). Then when you run, our workflow, use the `-profile pbs` option -- typically you would say something like `nextflow run -c my.config plink-qc -profile pbs`. Note that the `-profile pbs` only uses a single "-".
+To run using Torque/PBS, log into the head node. Edit the _nextflow.config_ file, and change the `queue` variable to be the queue you will run jobs on (if you're not sure of this, ask your friendly sysadmin). Then when you run, our workflow, use the `-profile pbs` option -- typically you would say something like `nextflow run -c my.config qc -profile pbs`. Note that the `-profile pbs` only uses a single "-".
 
 Similarily, if you run SLURM, set the _queue_ variable, and use the `-profile slurm` option.
 
@@ -684,7 +727,7 @@ We assume all the data is visible to all nodes in the swarm. Log into the head n
 We have tested our workflow on different Docker Swarms. How to set up Docker Swarm is beyond the scope of this tutorial, but if you have a Docker Swarm, it is easy to run. From the head node of your Docker swarm, run
 
 ```
-nextflow run plink-qc.nf -profile dockerSwarm
+nextflow run qc.nf -profile dockerSwarm
 ```
 
 ## 8.5 Singularity
@@ -692,11 +735,11 @@ nextflow run plink-qc.nf -profile dockerSwarm
 
 Our workflows now run easily with Singularity.
 
-`nextflow run plink-qc.nf -profile singularity`
+`nextflow run qc.nf -profile singularity`
 
 or
 
-`nextflow run plink-qc.nf -profile pbsSingularity`
+`nextflow run qc.nf -profile pbsSingularity`
 
 By default the user's ${HOME}/.singularity will be used as the cache for Singularity images. If you want to use something else, change the `singularity.cacheDir` parameter in the config file.
 
@@ -705,7 +748,7 @@ By default the user's ${HOME}/.singularity will be used as the cache for Singula
 If you have a cluster which runs Docker, you can get the best of both worlds by editing the queue variable in the _pbsDocker_ stanza, and then running
 
 ```
-nextflow run plink-qc.nf -profile option
+nextflow run qc.nf -profile option
 ```
 
 where _option_ is one of _pbsDocker_, _pbsSingularity_, _slurmDocker_ or _slurmSingularity_. If you use a different scheduler, read the Nextflow documentation on schedulers, and then use what we have in the _nextflow.config_ file as a template to tweak.
@@ -804,7 +847,7 @@ Login in the master node using the following command:
    Of course, you can also use other parameters (e.g. -resume or --work_dir). For your own run you will want to use your nextflow.config file.
 
 
-   By default, running the workflow like this runs the `plink-qc.nf` script. If you want to run one of the other scripts you would say `nextflow run  h3abionet/h3agwas/topbottom.nf` or `nextflow run h3abionet/h3agwas/plink-assoc.nf` etc. 
+   By default, running the workflow like this runs the `qc.nf` script. If you want to run one of the other scripts you would say `nextflow run  h3abionet/h3agwas/topbottom.nf` or `nextflow run h3abionet/h3agwas/assoc.nf` etc. 
 
 
 7. The output of the default runcan be found in` /mnt/shared/output`. The file sampleA.pdf is a report of the analysis that was done.
@@ -933,7 +976,6 @@ Three files are output: a fam file, an error file (the IDs of individuals who ar
 
 Nextflow has great options for showing resourc usage. However, you have to remember to set those option when you run.  It's easy to forget to do this. This very useful script by Harry Noyes (harry@liverpool.ac.uk) parses the .nextflow.log file  for you
 
-
 ## 9.3 make_ref.py 
 
 Makes a reference genome in a format the the pipeline can use. The first argument is a directory that contains FASTA files for each chromosome; the second is the strand report, the third is the manifest report, the fourt in the base of othe output files.
@@ -965,7 +1007,147 @@ batches['ID'] = batches['Institute Sample Label'].apply(lambda x:x[18:])
 In our example, we assumed the ID can found in the column "Institute Sample Label" but from the position 18 (indexed from 0) in the string. Change as appropriate for you
 
 
-# 10. Acknowledgement, Copyright and general
+
+# 10 Simulation pipeline: `simul-assoc.nf`
+
+This section describes a pipeline in devlopment, purpose of this pipeline is to estimate false positive and false negative with simulated phenotype, Our script, *simul-assoc.nf* takes as input PLINK files that have been through quality control and
+  * Simulate quantitative phenotypes with [phenosim](https://www.ncbi.nlm.nih.gov/pubmed/21714868) based on genetics data 
+  * perform a GWAS on  phenotype simulated using gemma, boltlmm.
+  * Perform summary statistics.
+
+## Installation
+a version of _phenosim_ adapted is already in nextflow binary, write in python2. plink, gemma and bolt must be installed 
+
+## Running
+
+The pipeline is run: `nextflow run simul-assoc.nf`
+
+The key options are:
+  * `work_dir` : the directory in which you will run the workflow. This will typically be the _h3agwas_ directory which you cloned;
+  * input, output and script directories: the default is that these are subdirectories of the `work_dir` and there'll seldom be reason to change these;
+  * `input_pat` : this typically will be the base name of the PLINK files you want to process (i.e., do not include the file suffix). But you could be put any Unix-style glob here. The workflow will match files in the relevant `input_dir` directory;
+  * num_cores : cores number used 
+  * ph_mem_req : memory request for phenosim
+  *  Simulation option :
+     * `phs_nb_sim` : simulation number (default : 5) 
+     * `phs_quant_trait` :  quantitative trait simulation : 1, qualitative not develop yet (default : 1, -q option in phenosim)
+     * Quantitative trait option :
+        * `ph_nb_qtl` : number of simulated QTN (default: 2, option -n in phenosim)
+        * `ph_list_qtl` : proportion of variance explained by each QTNs, separate the values by commas (default : 0.05 -q in phenosim)
+        * `ph_maf_r` :  MAF range for causal markers (upper and lower bound, separated by a comma, no space) (default: 0.05,1.0, -maf_r in phenosim)
+        * option to do a linear transformation of phenotype with co factor of external data and normatisation:
+           * ph_normalise : perform a normalisation (1) or not 0 (Default)
+           * each phenotype i be normalise using newpheno = norm(pheno)+var0i*a+var1i*b+ ... + intercept
+           * `ph_cov_norm` : contains coefficients for relation separed by a comma (ex "sex=0.2,age=-0.1)
+           * `data` : contains cofactor data for each individuals used to normalise with 
+           * `ph_cov_range` : normalisation range for initial phenotype
+           * `ph_intercept` : intercept
+  * Association option :
+     * `boltlmm` : 1 perform boltlmm (default 0), see boltlmm option in _assoc.nf_
+     * `gemma` : 1 perform gemma (default 0)  see gemma option in _assoc.nf_
+     * `covariates` : covariates to include in model (if ph_normalise is 1)
+  * Statistics option :
+     * `ph_alpha_lim` : list of alpha used to computed significance (separated by comma)  
+     * `ph_windows_size` : windows size around position used to simulate phenotype to define if was detected, in bp ex 1000bp in CM ex 0.1CM
+
+## output 
+different output is provided :
+   * simul folder : contains position used to defined phenotype 
+   * in boltlmm/gemma folder,  res_boltlmm/gemma.stat  contains summary stat for each alpha:
+      * we defined `windows true` as the windows around snp used to build phenotype (size is defined previously)
+      * `nsig_simall_alpha` : number significant snp in all windows true 
+      * `nsig_sim_alpha` :   number windows true where at least one snps is significant
+      * `nsig_simaround_alpha` : number significant windows true where one snp is significant and has been excluded snps used to build pheno
+      * `nsig_nosim_alpha` : snp significant snp not in windows true
+      * `nsnp` : snp number total  in dataset
+      * `nsnpsima` : snp number used to build phenotype (see ph_nb_qtl)
+   * in boltlmm/gemma/simul/ : contains p.value compute for each simulation
+
+#Note 
+  * for phenotype simulation all missing values is discarded and replaced by more frequent allele
+  * phenosim use a lot of memory and time, subsample of snp/samples improve times / memory used
+
+
+
+
+# 11 MetaAnalysis pipeline : `meta-assoc.nf`
+
+This section describes a pipeline in devlopment, purpose of this pipeline is to do a meta analysis with a various format files.Our script, *meta-assoc.nf* takes as input various GWAS results files and `rsid` to do a metanalysis with METAL, GWAMA and Metasoft
+
+## Installation
+need python3, METAL, GWAMA, MR-MEGA and MetaSoft
+
+## Running
+The pipeline is run: `nextflow run meta-assoc.nf`
+
+
+The key options are:
+  * `work_dir` : the directory in which you will run the workflow. This will typically be the _h3agwas_ directory which you cloned;
+  * `input`, `output` and script directories: the default is that these are subdirectories of the `work_dir` and there'll seldom be reason to change these;
+  * `output_dir` = "all"
+  * meta analysis option :
+     * `metal` : 1 perform metal (default 0) 
+     * `gwama` : 1 perform gwama (default 0)
+     * `metasoft` : 1 perform metasoft(default 0)   
+       * `metasoft_pvalue_table` : for metasoft need files :  _HanEskinPvalueTable.txt_ 
+     * `mrmega` : 1 perform MR-MEGA (default 0)
+  * `file_config` 
+     * describe all informations for each gwas result used for meta analysis 
+     * file is comma separated (csv), each line is to describe one file 
+     * header of config file is : rsID,Chro,Pos,A1,A2,Beta,Se,Pval,N,freqA1,direction,Imputed,Sep,File,IsRefFile
+       * `rsID` : column name for rsID in gwas file
+       * `Chro` : column name for Chro in gwas file
+       * `Pos` : column name for Pos in gwas file
+       * `A1` :  column name for reference allele in gwas file
+       * `A2` :  column name for alternative allele in gwas file
+       * `Beta` :  column name for B values in gwas file
+       * `Se` :  column name for sterr values in gwas file
+       * `N` : column name for size in gwas file
+       * `freqA1` : column name for freqA1 or maf in gwas file
+       * `direction` : column name of strand for association -/+  in gwas file
+       * `Imputed` :  column name of imputed or not for position in gwas file
+       * `Sep` : what separator is in gwas file :
+         * you could use characters as ; . : but to avoid some trouble you can use :
+           * COM : for comma
+           * TAB : for tabulation
+           * WHI : for white space
+       * `File` : gwas file with full path 
+       * `IsRefFile` : you need to define a reference file to define what rs should be considered in other files
+       * if one of the column is missing in your GWAS file, replace by _NA_
+  * optional option :
+     * binaries : 
+       * `metal_bin` : binarie for metal (default : _metal_ ) 
+       * `gwama_bin` :  binarie for gwam ( default : _GWAMA__ )
+       * `metasoft_bin` : binarie for java of metasoft ( default _Metasoft.jar_)
+       * `mrmega_bin` : binarie for java of metasoft ( default _Metasoft.jar_)
+     * options softwares :
+       * `ma_metasoft_opt` : append other option in metasoft command line(default : null)
+       * `ma_genomic_cont` : use a genomic_control use in METAL and GWAMA(default, 0)
+       * `ma_inv_var_weigth`: do a invert variance weight usefull for metal (default, 0)
+       * `ma_random_effect` : do mixed model (default 1)
+       * `ma_mrmega_pc` : how many pcs used for mrmega (default : 4)
+       * `ma_mrmega_opt` : append other option in MR-MEGA command line (default : null)
+## specificity 
+### MR-MEGA
+MR-MEGA need chromosomes, positions and N (sample number) for each position, so in pipeline referent file (in file_config, 1 in IsRefFile) must be have chromosome and poosition 
+
+
+# 12 annotation pipeline: `annot-assoc.nf`
+This section describes a pipeline in devlopment, objectives is annotation of rs using annotation, locuszoom, and phenotype in function of genotype
+
+## Installation
+need locuszoom, _R_ : (ggplot2), python3
+
+## Running
+The pipeline is run: `nextflow run annot-assoc.nf`
+
+The key options are:
+  * `work_dir` : the directory in which you will run the workflow. This will typically be the _h3agwas_ directory which you cloned;
+  * input, output and script directories: the default is that these are subdirectories of the `work_dir` and there'll seldom be reason to change these;
+  * `input_pat` : this typically will be the base name of the PLINK files you want to process (i.e., do not include the file suffix). But you could be put any Unix-style glob here. The workflow will match files in the relevant `input_dir` directory;
+
+
+# 13. Acknowledgement, Copyright and general
 
 ## Acknowledgement
 
@@ -973,6 +1155,7 @@ We acknowledge funding by the National Institutes of Health through the NHGRI (U
 
 * We thank Sumir Panji and Nicola Mulder for their support and leadership
 * We thank Fourie Joubert at the University of Pretoria for hosting our initital hackathon.
+>>>>>>> master
 
 ### Authors
 

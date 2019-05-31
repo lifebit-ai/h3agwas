@@ -17,6 +17,11 @@ from matplotlib.ticker import MaxNLocator
 
 colours =['white','black','darkmagenta','green','cyan','maroon','green','black', 'blue', 'darkgrey', 'rosybrown', 'lightcoral', 'brown', 'firebrick', 'darkred', 'r', 'red', 'mistyrose', 'salmon', 'tomato', 'darksalmon', 'coral', 'orangered', 'lightsalmon', 'sienna', 'seashell', 'chocolate', 'saddlebrown', 'sandybrown', 'peachpuff', 'peru', 'linen', 'bisque', 'darkorange', 'burlywood',  'tan', 'papayawhip', 'moccasin', 'orange', 'wheat', 'oldlace', 'floralwhite', 'darkgoldenrod', 'goldenrod', 'cornsilk', 'gold', 'lemonchiffon', 'khaki', 'palegoldenrod', 'darkkhaki', 'ivory', 'beige', 'lightyellow', 'lightgoldenrodyellow', 'olive', 'y', 'yellow', 'olivedrab', 'yellowgreen', 'darkolivegreen', 'greenyellow', 'chartreuse', 'lawngreen', 'honeydew', 'darkseagreen', 'palegreen', 'lightgreen', 'forestgreen', 'limegreen', 'darkgreen', 'g', 'green', 'lime', 'seagreen', 'mediumseagreen', 'springgreen', 'mintcream', 'mediumspringgreen', 'mediumaquamarine', 'aquamarine', 'turquoise', 'lightseagreen', 'mediumturquoise', 'azure', 'lightcyan', 'paleturquoise', 'darkslategray', 'darkslategrey', 'teal', 'darkcyan', 'c', 'aqua', 'cyan', 'darkturquoise', 'cadetblue', 'powderblue', 'lightblue', 'deepskyblue', 'skyblue', 'lightskyblue', 'steelblue', 'aliceblue', 'dodgerblue', 'lightslategray', 'lightslategrey', 'slategray', 'slategrey', 'lightsteelblue', 'cornflowerblue', 'royalblue', 'ghostwhite', 'lavender', 'midnightblue', 'navy', 'darkblue', 'mediumblue', 'b', 'blue', 'slateblue', 'darkslateblue', 'mediumslateblue', 'mediumpurple', 'rebeccapurple', 'blueviolet', 'indigo', 'darkorchid', 'darkviolet', 'mediumorchid', 'thistle', 'plum', 'violet', 'purple', 'darkmagenta', 'm', 'fuchsia', 'magenta', 'orchid', 'mediumvioletred', 'deeppink', 'hotpink', 'lavenderblush', 'palevioletred', 'crimson', 'pink', 'lightpink']
 
+def debug(*args):
+    return
+    print(*args)
+
+
 def parseArguments():
     parser=argparse.ArgumentParser()
     parser.add_argument('base', type=str, metavar='base'),
@@ -212,9 +217,9 @@ def showResult(colname,num_samples,ave_miss,num_poor_i,problems,sex_report):
        template="%s & %d & %5.2f & %5.2f & %5.2f *-*-"
    for r in ave_miss.index:
       if type(problems) == type(None):
-         res = ( r, num_samples.ix[r],ave_miss.ix[r],num_poor_i.ix[r]['F_MISS'])
+         res = ( r, num_samples.loc[r],ave_miss.loc[r],num_poor_i.loc[r]['F_MISS'])
       else:
-         res = ( r, num_samples.ix[r],ave_miss.ix[r],num_poor_i.ix[r]['F_MISS'],problems.ix[r]['STATUS'])
+         res = ( r, num_samples.loc[r],ave_miss.loc[r],num_poor_i.loc[r]['F_MISS'],problems.loc[r]['STATUS'])
       t = t + template%res + EOL
    t=t+"*-hline"+EOL+"*-end{tabular}"+(res_caption%colname)
    t=t+sex_report
@@ -226,19 +231,20 @@ def showResult(colname,num_samples,ave_miss,num_poor_i,problems,sex_report):
 
 
 def plotPCs(base,eigs,pfrm,pheno_col,batch,batch_col):
-    def group_fn(x):
-       try:
-          return pfrm.ix[x][args.pheno_col]
-       except KeyError:
-          return 0
-    g = eigs.groupby(group_fn)
+    debug("In plotPCs")
+    debug("eigs",eigs.index.names," columns", eigs.columns)  #DBG
+    debug("pfrm",pfrm.index.names," columns",pfrm.columns)  #DBG
+    debug("batch",batch.index.names," batch",batch.columns) #DBG
+    all_f = eigs.join(pfrm)
+    g = all_f.groupby(args.pheno_col)
     matplotlib.rcParams.update({'font.size': 12})
     batch_values = batch[batch_col].unique()
     our_colours  = dict(zip(batch_values,colours[1:1+len(batch_values)]))
     allplots=[]
-    batch['colour']=batch.apply(lambda x:our_colours[x['batch']],axis=1)
+    batch['colour']=batch.apply(lambda x:our_colours[x[batch_col]],axis=1)
     for site, df in g:
-        df=df.merge(batch,on=['FID','IID'],how='inner')
+        debug("plotPCs loop",site,df.head()) #DBG
+        df=df.merge(batch,left_index=True,right_index=True,how='inner')
         fig = plt.figure(figsize=(6,6))
         fig, ax = plt.subplots()
         locator = MaxNLocator(nbins=4) 
@@ -323,11 +329,21 @@ def getVClose(gfrm,pfrm,pheno_col):
     vclose = gfrm[gfrm['PI_HAT']>0.45][["FID1","IID1","FID2","IID2","PI_HAT"]]
     curr = TAB.join(["FID1","IID1",pheno_col+"1","FID2","IID2",pheno_col+"2","PI_HAT"])+EOL
     for i,row in vclose.iterrows():
+        #if re.search("_replicate_",row[0]+row[2]): continue
+        #if re.search("_MSK_",row[1]+row[3]): continue
         if row[1][-4:-1]=="DUP" or row[3][-4:-1]=="DUP": continue
-        curr = curr+TAB.join([row[0],row[1],pfrm.loc[row[0],row[1]][pheno_col],\
-                              row[2],row[3],pfrm.loc[row[2],row[3]][pheno_col],\
+        pairA=pfrm.loc[row[0],row[1]][pheno_col]
+        pairB=pfrm.loc[row[2],row[3]][pheno_col]
+        curr = curr+TAB.join([row[0],row[1],pairA,\
+                              row[2],row[3],pairB,\
                               str(row[4])])+EOL
     return curr
+
+
+def getGroupNum(pfrm,pheno_col,fid,iid):
+   this_g = pfrm[pheno_col].loc[fid,iid]
+   if 'values' in dir(this_g): this_g=this_g.values[0]
+   return this_g
 
 def getRelatedPairs(pfrm,pheno_col,genome):
     gfrm = pd.read_csv(genome,delim_whitespace=True, dtype=idtypes)
@@ -340,8 +356,10 @@ def getRelatedPairs(pfrm,pheno_col,genome):
         id1 = pair[["FID1","IID1"]].values
         id2 = pair[["FID2","IID2"]].values
         if "DUP" == id2[1][-4:-1] or "DUP"==id1[1][-4:-1]:continue
-        this_g1 = pfrm[pheno_col].loc[id1[0],id1[1]]
-        this_g2 = pfrm[pheno_col].loc[id2[0],id2[1]]
+        #if re.search("_replicate_",id1[0]+id2[0]): continue
+        #if re.search("_MSK_",id1[1]+id2[1]): continue
+        this_g1 = getGroupNum(pfrm,pheno_col,id1[0],id1[1])
+        this_g2 = getGroupNum(pfrm,pheno_col,id2[0],id2[1])
         group[" ALL"] = group.get(" ALL",0)+1
         if this_g1 == this_g2:
             group[this_g1] = group.get(this_g1,0)+1
@@ -485,12 +503,12 @@ def detSexHeader(pfrm,missing_sex_columns):
 
 # provide the details of a specific group
 def detSexGroup(sfrm,gname,missing_sex_columns):
-    tot   = sfrm.count()-sfrm.isnull().sum()
-    herrs = (sfrm=='H').sum()
-    serrs = (sfrm=='S').sum()
     line = "%8s"%gname 
     for rate in missing_sex_columns:
-        line = line+" & %d & %d & %d "%(tot[rate],serrs[rate],herrs[rate])
+        tot   = sfrm[rate].count()-sfrm[rate].isnull().sum()
+        herrs = (sfrm[rate]=='H').sum()
+        serrs = (sfrm[rate]=='S').sum()
+        line = line+" & %d & %d & %d "%(tot,serrs,herrs)
     line=line+"*-*-"+EOL
     return line
    
@@ -540,7 +558,9 @@ def backslashify(text):
 
 def getBatchAnalysis():
 # Show the missingness by batch
+   debug("In getBatchAnalysis") #DBG
    if "${params.batch}" in no_response:
+       print("Making fake batch file",ifrm.columns," index is ",ifrm.index.names)  # DBG
        args.batch_col = 'all'
        bfrm = DataFrame([1]*len(ifrm),index=ifrm.index,columns=['all'])
        res_text = "Table *-ref{table:batchrep:all} on page *-pageref{table:batchrep:all} shows the error rate."
@@ -548,10 +568,13 @@ def getBatchAnalysis():
        g.close()
    else:
        bfrm = getCsvI(args.batch)
+       debug("Read in batch file",bfrm.columns," index is ",bfrm.index.names) #DBG
        res_text = "Table *-ref{table:batchrep:%(bname)s} on page *-pageref{table:batchrep:%(bname)s} shows the error "\
-                  " rate as shown by %(bname)s as found in file *-url{%(fname)s}."\
+                  " rate as shown by *-url{%(bname)s} as found in file *-url{%(fname)s}."\
                    %({'bname':args.batch_col,'fname':args.batch})
+   
    problems = ifrm.index.difference(bfrm.index).to_series().values
+   problems = list(filter(lambda fn: "_replicate_" not in fn[0] and (not fn[1].startswith("_MSK_")), problems))
    if len(problems)>0:
         print("Problem there IDs in the genotype data that are not in the batch data")
         print("You need to fix one way or the other")
@@ -568,15 +591,16 @@ def getPhenoAnalysis():
     res_text = ""
     if  "${params.phenotype}" in no_response:
         if "${params.batch}" not in no_response:
+            debug("Making fake phenotype file") #DBG
             args.pheno_col = 'all'
             pfrm = DataFrame(["1"]*len(ifrm),index=ifrm.index,columns=['all'])
             got_frame = True
-            res_text = "Table *-ref{table:batchrep:all} on page *-pageref{table:batchrep:all} shows the error rate."
+            res_text = "Table *-ref{table:batchrep:all} on page *-pageref{table:batchrep:all} shows the *-textbf{overall} error rate."
     else:
         pfrm = getCsvI(args.phenotype)
         got_frame = True
         res_text = "Table *-ref{table:batchrep:%(bname)s} on page *-pageref{table:batchrep:%(bname)s} shows the error"\
-                   " rate as shown by %(bname)s as found in file *-url{%(fname)s}."\
+                   " rate as shown by *-url{%(bname)s} as found in file *-url{%(fname)s}."\
                      %({'bname':args.pheno_col,'fname':args.phenotype})
     if got_frame:
         result = miss_vals(ifrm,pfrm,args.pheno_col,args.sexcheck_report)
@@ -590,6 +614,9 @@ def getPhenoAnalysis():
 text = getHeader()+EOL+EOL
 #if not(args.batch == "0" and args.phenotype == "0"):
 ifrm = getCsvI(args.imiss)
+debug("Read the missing file ",args.imiss)  # DBG
+debug("Index is ",ifrm.index.names)  #DBG
+debug("Columns are",ifrm.columns)  #DBG
 no_response = [0,"0",False,"FALSE","false","False",""]
 
 bfrm, btext = getBatchAnalysis()
