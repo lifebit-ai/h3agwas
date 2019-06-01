@@ -29,8 +29,44 @@ def helps = [ 'help' : 'help' ]
 
 
 
-allowed_params = ["mperm","sharedStorageMount","shared-storage-mount","max-instances","maxInstances","AMI","gc10","input_dir","instanceType","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","assoc","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "other_mem_req", "max_plink_cores", "pheno","big_time","thin", "gemma_mat_rel","print_pca", "file_rs_buildrelat","genetic_map_file", "rs_list","adjust","bootStorageSize","instance-type","boot-storage-size"]
+allowed_params = ["vcf", "mperm","sharedStorageMount","shared-storage-mount","max-instances","maxInstances","AMI","gc10","input_dir","instanceType","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","assoc","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "other_mem_req", "max_plink_cores", "pheno","big_time","thin", "gemma_mat_rel","print_pca", "file_rs_buildrelat","genetic_map_file", "rs_list","adjust","bootStorageSize","instance-type","boot-storage-size"]
 
+// read in JSON file & create FAM file
+if (params.vcf && params.data) {
+  Channel.fromPath(params.vcf)
+        .ifEmpty { exit 1, "VCF file not found: ${params.vcf}" }
+        .set { vcf_plink }
+} else if (params.vcf && !params.data){
+  // vcfString = "'" + params.vcf + "'"
+  vcfString = params.vcf.replace(',,',',"NA",')
+
+  def jsonSlurper = new groovy.json.JsonSlurper()
+  def vcfsMap = jsonSlurper.parseText(vcfString)
+
+  int count = 0
+  def newFile = new File(params.tmp)
+  def vcfs = []
+
+  for ( vcf in vcfsMap.vcf ) {
+        if (count == 0) {
+              newFile.append("VCF,FID,PAT,MAT,${vcf.metadata}")
+        } else {
+              def files = vcf.files as List
+              newFile.append("\n${files.findAll { it.endsWith("vcf.gz") }[0]},${count},0,0,${vcf.metadata}")
+              vcfs << files.findAll { it.endsWith("vcf.gz") }[0]
+        }  
+        count++
+  }
+  if (count == 2) {
+    exit 1, "Number of individuals = ${count - 1}\nPlease ensure that you have more than individual/input VCF file"
+  }
+  newFile.createNewFile()
+  tmp = file(params.tmp)
+
+  vcfsCh = Channel
+        .fromPath( vcfs )
+        .set { testVcfs }
+}
 
 /*JT : append argume boltlmm, bolt_covariates_type */
 /*bolt_use_missing_cov --covarUseMissingIndic : “missing indicator method” (via the --covarUseMissingIndic option), which adds indicator variables demarcating missing status as additional covariates. */
@@ -57,7 +93,7 @@ def params_help = new LinkedHashMap(helps)
 params.queue      = 'batch'
 params.work_dir   = "$HOME/h3agwas"
 params.input_dir  = "${params.work_dir}/input"
-params.output_dir = "${params.work_dir}/output"
+params.output_dir = "${params.work_dir}/results"
 params.output_testing = "cleaned"
 params.thin       = ""
 params.covariates = ""
@@ -145,7 +181,12 @@ max_plink_cores = params.max_plink_cores
 params.help = false
 
 
-data_ch = file(params.data)
+if (params.data) {
+  data_ch = file(params.data)
+  if (params.vcf) {
+    data = Channel.fromPath(params.data)
+  }
+}
 
 if (params.help) {
     params.each {
@@ -230,11 +271,11 @@ checker = { fn ->
 
 
 
-
-bed = Paths.get(params.input_dir,"${params.input_pat}.bed").toString()
-bim = Paths.get(params.input_dir,"${params.input_pat}.bim").toString()
-fam = Paths.get(params.input_dir,"${params.input_pat}.fam").toString()
-
+if (params.input_dir) {
+  bed = Paths.get(params.input_dir,"${params.input_pat}.bed").toString()
+  bim = Paths.get(params.input_dir,"${params.input_pat}.bim").toString()
+  fam = Paths.get(params.input_dir,"${params.input_pat}.fam").toString()
+}
 
 gemma_assoc_ch = Channel.create()
 /*JT initatilisation of boltlmm_assoc_ch*/
@@ -247,12 +288,13 @@ assoc_ch  = Channel.create()
 assoc_ch_gxe  = Channel.create()
 raw_src_ch= Channel.create()
 
-Channel
-    .from(file(bed),file(bim),file(fam))
-    .buffer(size:3)
-    .map { a -> [checker(a[0]), checker(a[1]), checker(a[2])] }
-    .set { raw_src_ch }
-
+if (params.input_dir) {
+  Channel
+      .from(file(bed),file(bim),file(fam))
+      .buffer(size:3)
+      .map { a -> [checker(a[0]), checker(a[1]), checker(a[2])] }
+      .set { raw_src_ch }
+}
 
 println "\nTesting data            : ${params.input_pat}\n"
 println "Testing for phenotypes  : ${params.pheno}\n"
@@ -268,6 +310,105 @@ if (params.gemma) println "Doing gemma testing"
 if(params.gemma_gxe==1)println "Doing mixed model with gemma and gxe with "+params.gxe
 if(params.plink_gxe==1)println "Doing with plink gxe with "+params.gxe
 println "\n"
+
+
+if (!params.data && params.vcf) {
+  process preprocessing {
+      publishDir 'results'
+      container 'lifebitai/preprocess_gwas:latest'
+
+      input:
+      file vcfs from testVcfs.collect()
+      file tmp
+
+      output:
+      file 'merged.vcf' into vcf_plink
+      file 'sample.phe' into data_ch, data_ch1, data_ch2, data
+
+      script:
+      """
+      # remove square brackets around phenotype data
+      sed 's/[][]//g' $tmp > result.csv
+      # remove whitespace & encode phenotypes
+      sed -i -e 's/ //g' result.csv
+      sed -i -e 's/Yes/2/g' result.csv
+      sed -i -e 's/No/1/g' result.csv
+      sed -i -e 's/NA/-9/g' result.csv
+      # remove any prexisting columns for sex 
+      if grep -Fq "SEX" result.csv; then
+            awk -F, -v OFS=, 'NR==1{for (i=1;i<=NF;i++)if (\$i=="SEX"){n=i-1;m=NF-(i==NF)}} {for(i=1;i<=NF;i+=1+(i==n))printf "%s%s",\$i,i==m?ORS:OFS}' result.csv > tmp.csv && mv tmp.csv result.csv
+      fi
+      
+      # iterate through urls in csv replacing s3 path with the local one
+      urls="\$(tail -n+2 result.csv | awk -F',' '{print \$1}')"
+      for url in \$(echo \$urls); do
+            vcf="\${url##*/}"
+            sed -i -e "s~\$url~\$vcf~g" result.csv
+      done
+      # determine sex of each individual from VCF file & add to csv file
+      echo 'SEX' > sex.txt
+      for vcf in \$(tail -n+2 result.csv | awk -F',' '{print \$1}'); do
+            bcftools index -f \$vcf
+            SEX="\$(bcftools plugin vcf2sex \$vcf)"
+            if [[ \$SEX == *M ]]; then
+                  echo "1" >> sex.txt
+            elif [ \$SEX == *F ]]; then
+                  echo "2" >> sex.txt
+            fi
+      done
+      paste -d, sex.txt result.csv > tmp.csv && mv tmp.csv result.csv
+      make_fam.py
+      vcfs=\$(tail -n+2 result.csv | awk -F',' '{print \$2}')
+      bcftools merge \$vcfs > merged.vcf
+      # check that both cases & controls are present
+      pheno_column=\$(awk 'NR==1 {
+          for (i=1; i<=NF; i++) {
+              f[\$i] = i
+          }
+      }
+      { print \$(f["$params.pheno"])}' sample.phe | tail -n +2)
+      controls=\$(echo \$pheno_column | grep -o 1 | wc -l)
+      cases=\$(echo \$pheno_column | grep -o 2 | wc -l)
+      if [[ \$controls == *0* || \$cases == *0* ]]
+      then
+        echo "For phenotype: $params.pheno, number of cases: \$cases, number of controls: \$controls\nPlease ensure that you have individuals in both the case and control group"
+        exit 1
+      fi
+      """
+  }
+}
+
+if(params.vcf){
+  process plink {
+  publishDir "${params.output_dir}/plink", mode: 'copy'
+
+  input:
+  file vcf from vcf_plink
+  file fam from data
+
+  output:
+  set file('*.bed'), file('*.bim'), file('*.fam') into raw_src_ch
+
+  script:
+  """
+  sed '1d' $fam > tmpfile; mv tmpfile $fam
+  # remove contigs eg GL000229.1 to prevent errors
+  sed -i '/^GL/ d' $vcf
+  plink --vcf $vcf
+  rm plink.fam
+  mv $fam plink.fam
+  """
+  }
+}
+
+//testing_data = params.vcf ? params.vcf : params.input_pat
+if (params.vcf && params.data) { 
+  testing_data = params.vcf 
+} else if (params.vcf && !params.data) { 
+  testing_data = "merged.vcf" 
+} else { 
+  testing_data = params.input_pat 
+}
 
 if (params.thin)
    thin = "--thin ${params.thin}"
@@ -361,7 +502,7 @@ pheno     = ""
 
 
  
-if (params.data != "") {
+if (params.data != "" || (params.vcf && !params.data)) {
 
    checker(file(params.data))
 
@@ -1124,8 +1265,3 @@ process doReport {
     texf   = "${out}.tex"
     template "make_assoc_report.py"
 }
-
-
-
-
-
