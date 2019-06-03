@@ -114,12 +114,12 @@ outfname = params.output_testing
 params.mperm = 1000
 
 /* Adjust for multiple correcttion */
-params.adjust = 0
+params.adjust = 1
 
 supported_tests = ["assoc","fisher","model","cmh","linear","logistic","boltlmm", "fastlmm", "gemma", "gemma_gxe"]
 
 
-params.assoc     = 0
+params.assoc     = 1
 params.fisher   = 0
 params.cmh     =  0
 params.model   =  0
