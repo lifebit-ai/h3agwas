@@ -61,7 +61,7 @@ def getEigens():
     plt.ylabel("Eigenvalue",fontsize=15)
     plt.xticks(range(len(evals)+1), list(map(lambda x : x+1, range(len(evals))) )+[""])
     plt.tight_layout()
-    plt.savefig("eigenvalue.pdf",type="pdf")
+    plt.savefig("eigenvalue.png",type="png")
     pc1 = 100*evals[0]/evals[:10].sum()
     pc2 = 100*evals[1]/evals[:10].sum()
     pcs = list(map(lambda x: "PC%d"%(x+1),range(len(evals))))
