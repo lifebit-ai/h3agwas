@@ -29,7 +29,7 @@ def helps = [ 'help' : 'help' ]
 
 
 
-allowed_params = ["vcf_file", "vcf", "tmp", "mperm","sharedStorageMount","shared-storage-mount","max-instances","maxInstances","AMI","gc10","input_dir","instanceType","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","assoc","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "other_mem_req", "max_plink_cores", "pheno","big_time","thin", "gemma_mat_rel","print_pca", "file_rs_buildrelat","genetic_map_file", "rs_list","adjust","bootStorageSize","instance-type","boot-storage-size"]
+allowed_params = ["pca_count", "vcf_file", "vcf", "tmp", "mperm","sharedStorageMount","shared-storage-mount","max-instances","maxInstances","AMI","gc10","input_dir","instanceType","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","assoc","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "other_mem_req", "max_plink_cores", "pheno","big_time","thin", "gemma_mat_rel","print_pca", "file_rs_buildrelat","genetic_map_file", "rs_list","adjust","bootStorageSize","instance-type","boot-storage-size"]
 
 if (params.vcf_file) {
     Channel.fromPath(params.vcf_file)
@@ -528,7 +528,7 @@ process computePCA {
      """
      plink --bfile ${base} --indep-pairwise 100 20 0.2 --out check
      plink --keep-allele-order --bfile ${base} --extract check.prune.in --make-bed --out $prune
-     plink --threads $max_plink_cores --bfile $prune --pca --out ${outfname}
+     plink --threads $max_plink_cores --bfile $prune --pca ${params.pca_count} --out ${outfname}
      """
 }
 
