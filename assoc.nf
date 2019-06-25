@@ -399,7 +399,7 @@ if (!params.data && params.vcf) {
 
       output:
       file 'merged.vcf' into vcf_plink
-      file 'sample.phe' into data_ch, data_ch1, data_ch2, data
+      file 'sample.phe' into data_ch, data_ch1, data_ch2, data_ch3, data
 
       script:
       """
@@ -453,7 +453,7 @@ if(params.vcf || params.vcf_file){
   file fam from data
 
   output:
-  set file('*.bed'), file('*.bim'), file('*.fam') into raw_src_ch
+  set file('*.bed'), file('*.bim'), file('*.fam') into raw_src_ch, raw_src_ch2
 
   script:
   """
@@ -464,6 +464,26 @@ if(params.vcf || params.vcf_file){
   rm plink.fam
   mv $fam plink.fam
   """
+  }
+}
+
+if (params.vcf_file) {
+  process manhattan_plot {
+    publishDir "${params.output_dir}/manhattan_plot", mode: 'copy'
+    container 'lifebitai/manhattan:latest'
+
+    input:
+    set file(bed), file(bim), file(fam) from raw_src_ch2
+    file phe from data_ch3
+
+    output:
+    file("*") into manhattan
+
+    script:
+    """
+    plink --bed $bed --bim $bim --fam $fam --pheno $phe --pheno-name $params.pheno --assoc --out out
+    manhattan_plot.R *assoc
+    """
   }
 }
 
