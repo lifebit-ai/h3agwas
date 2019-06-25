@@ -1,0 +1,5 @@
+sampleid,vcf,SMOKER,SEX,AGE
+uk740176,https://s3-eu-west-1.amazonaws.com/pgp-lifebit/uk740176/FR07961004.pass.recode.vcf.gz,1,2,64
+uk33D02F,https://s3-eu-west-1.amazonaws.com/pgp-lifebit/uk33D02F/FR07961005.pass.recode.vcf.gz,2,1,27
+uk0C72FF,https://s3-eu-west-1.amazonaws.com/pgp-lifebit/uk0C72FF/FR07961006.pass.recode.vcf.gz,1,1,38
+uk174659,https://s3-eu-west-1.amazonaws.com/pgp-lifebit/uk174659/FR07961008.pass.recode.vcf.gz,1,2,43

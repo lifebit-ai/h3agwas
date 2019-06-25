@@ -29,7 +29,18 @@ def helps = [ 'help' : 'help' ]
 
 
 
-allowed_params = ["vcf", "tmp", "mperm","sharedStorageMount","shared-storage-mount","max-instances","maxInstances","AMI","gc10","input_dir","instanceType","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","assoc","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "other_mem_req", "max_plink_cores", "pheno","big_time","thin", "gemma_mat_rel","print_pca", "file_rs_buildrelat","genetic_map_file", "rs_list","adjust","bootStorageSize","instance-type","boot-storage-size"]
+allowed_params = ["n_eigenvecs", "vcf_file", "vcf", "tmp", "mperm","sharedStorageMount","shared-storage-mount","max-instances","maxInstances","AMI","gc10","input_dir","instanceType","input_pat","output","output_dir","data","plink_mem_req","covariates","gemma_num_cores","gemma_mem_req","gemma","linear","logistic","assoc","fisher", "work_dir", "scripts", "max_forks", "high_ld_regions_fname", "sexinfo_available", "cut_het_high", "cut_het_low", "cut_diff_miss", "cut_maf", "cut_mind", "cut_geno", "cut_hwe", "pi_hat", "super_pi_hat", "f_lo_male", "f_hi_female", "case_control", "case_control_col", "phenotype", "pheno_col", "batch", "batch_col", "samplesize", "strandreport", "manifest", "idpat", "accessKey", "access-key", "secretKey", "secret-key", "region", "other_mem_req", "max_plink_cores", "pheno","big_time","thin", "gemma_mat_rel","print_pca", "file_rs_buildrelat","genetic_map_file", "rs_list","adjust","bootStorageSize","instance-type","boot-storage-size"]
+
+if (params.vcf_file) {
+    Channel.fromPath(params.vcf_file)
+           .ifEmpty { exit 1, "VCF file containing  not found: ${params.vcf_file}" }
+           .into { vcf_file; vcfs_to_split }
+
+    vcfs_to_split
+        .splitCsv(header: true)
+        .map{ row -> [file(row.vcf)] }
+        .set { testVcfs }
+}
 
 // read in JSON file & create FAM file
 if (params.vcf && params.data) {
@@ -114,12 +125,12 @@ outfname = params.output_testing
 params.mperm = 1000
 
 /* Adjust for multiple correcttion */
-params.adjust = 0
+params.adjust = 1
 
 supported_tests = ["assoc","fisher","model","cmh","linear","logistic","boltlmm", "fastlmm", "gemma", "gemma_gxe"]
 
 
-params.assoc     = 0
+params.assoc     = 1
 params.fisher   = 0
 params.cmh     =  0
 params.model   =  0
@@ -183,6 +194,7 @@ params.help = false
 
 if (params.data) {
   data_ch = file(params.data)
+  data_ch2 = file(params.data)
   if (params.vcf) {
     data = Channel.fromPath(params.data)
   }
@@ -376,9 +388,63 @@ if (!params.data && params.vcf) {
       fi
       """
   }
+} else if (params.vcf_file) {
+   process file_preprocessing {
+      publishDir 'results'
+      container 'lifebitai/preprocess_gwas:latest'
+
+      input:
+      file vcfs from testVcfs.collect()
+      file vcf_file from vcf_file
+
+      output:
+      file 'merged.vcf' into vcf_plink
+      file 'sample.phe' into data_ch, data_ch1, data_ch2, data
+
+      script:
+      """
+      # iterate through urls in csv replacing s3 path with the local one
+      urls="\$(tail -n+2 $vcf_file | awk -F',' '{print \$2}')"
+      for url in \$(echo \$urls); do
+            vcf="\${url##*/}"
+            sed -i -e "s~\$url~\$vcf~g" $vcf_file
+      done
+
+      # bgzip uncompressed vcfs
+      for vcf in \$(tail -n+2 $vcf_file | awk -F',' '{print \$2}'); do
+            if [ \${vcf: -4} == ".vcf" ]; then
+                  bgzip -c \$vcf > \${vcf}.gz
+                  sed -i "s/\$vcf/\${vcf}.gz/g" $vcf_file 
+            fi
+      done
+
+      # remove any prexisting columns for sex 
+      if grep -Fq "SEX" $vcf_file; then
+            awk -F, -v OFS=, 'NR==1{for (i=1;i<=NF;i++)if (\$i=="SEX"){n=i-1;m=NF-(i==NF)}} {for(i=1;i<=NF;i+=1+(i==n))printf "%s%s",\$i,i==m?ORS:OFS}' $vcf_file > tmp.csv && mv tmp.csv $vcf_file
+      fi
+
+      # determine sex of each individual from VCF file & add to csv file
+      echo 'SEX' > sex.txt
+      for vcf in \$(tail -n+2 $vcf_file | awk -F',' '{print \$2}'); do
+            bcftools index -f \$vcf
+            SEX="\$(bcftools plugin vcf2sex \$vcf)"
+            if [[ \$SEX == *M ]]; then
+                  echo "1" >> sex.txt
+            elif [ \$SEX == *F ]]; then
+                  echo "2" >> sex.txt
+            fi
+      done
+
+      # make fam file & merge vcfs
+      paste -d, sex.txt $vcf_file > tmp.csv && mv tmp.csv $vcf_file
+      make_fam2.py $vcf_file
+      vcfs=\$(tail -n+2 $vcf_file | awk -F',' '{print \$3}')
+      bcftools merge \$vcfs > merged.vcf
+      """
+  }
 }
 
-if(params.vcf){
+if(params.vcf || params.vcf_file){
   process plink {
   publishDir "${params.output_dir}/plink", mode: 'copy'
 
@@ -404,7 +470,7 @@ if(params.vcf){
 //testing_data = params.vcf ? params.vcf : params.input_pat
 if (params.vcf && params.data) { 
   testing_data = params.vcf 
-} else if (params.vcf && !params.data) { 
+} else if ((params.vcf && !params.data) || params.vcf_file) { 
   testing_data = "merged.vcf" 
 } else { 
   testing_data = params.input_pat 
@@ -462,7 +528,7 @@ process computePCA {
      """
      plink --bfile ${base} --indep-pairwise 100 20 0.2 --out check
      plink --keep-allele-order --bfile ${base} --extract check.prune.in --make-bed --out $prune
-     plink --threads $max_plink_cores --bfile $prune --pca --out ${outfname}
+     plink --threads $max_plink_cores --bfile $prune --pca ${params.n_eigenvecs} --out ${outfname}
      """
 }
 
@@ -502,7 +568,7 @@ pheno     = ""
 
 
  
-if (params.data != "" || (params.vcf && !params.data)) {
+if (params.data != "" || (params.vcf && !params.data) || params.vcf_file) {
 
   //  checker(file(params.data))
 
@@ -530,7 +596,7 @@ if (params.data != "" || (params.vcf && !params.data)) {
 
   process showPhenoDistrib {
     input:
-    file(data) from data_ch
+    file(data) from data_ch2
     output:
       file ("B050*") into report_ch
     script:
@@ -1313,3 +1379,4 @@ process visualisations {
     combine_reports.py .
     """
 }
+
