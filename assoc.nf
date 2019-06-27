@@ -439,7 +439,7 @@ if (!params.data && params.vcf) {
       paste -d, sex.txt $vcf_file > tmp.csv && mv tmp.csv $vcf_file
       make_fam2.py $vcf_file
       vcfs=\$(tail -n+2 $vcf_file | awk -F',' '{print \$3}')
-      bcftools merge \$vcfs > merged.vcf
+      bcftools merge --force-samples \$vcfs > merged.vcf
       """
   }
 }
