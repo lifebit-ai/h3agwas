@@ -439,7 +439,7 @@ if (!params.data && params.vcf) {
       paste -d, sex.txt $vcf_file > tmp.csv && mv tmp.csv $vcf_file
       make_fam2.py $vcf_file
       vcfs=\$(tail -n+2 $vcf_file | awk -F',' '{print \$3}')
-      bcftools merge \$vcfs > merged.vcf
+      bcftools merge --force-samples \$vcfs > merged.vcf
       """
   }
 }
@@ -1243,6 +1243,8 @@ if (params.assoc+params.fisher+params.logistic+params.linear > 0) {
       base="cleaned-${test}"
       """
       plinkDraw.py  C050 $base $test ${pheno_name} $gotcovar png
+      # rename plots to remove pheno from file name
+      for x in *.png;do mv \$x \${x%-*.png}.png;done
       """
   }
 
@@ -1349,14 +1351,12 @@ process visualisations {
     """
     ls *png > images.txt
     sed -i '/${pca}/d' images.txt
-    phe_regex="-([a-zA-Z]+).png"
-    plot_regex="cleaned-[a-z]+-([a-z]+)"
+    plot_regex="cleaned-[a-z]+-[a-z]+-([a-z]+)"
     test_regex="cleaned-([a-z]+)"
     for image in \$(cat images.txt); do
       prefix="\${image%.*}"
       pca=$pca
       pca_prefix="\${pca%.*}"
-      [[ \$image =~ \$phe_regex ]]; phe="\${BASH_REMATCH[1]}"
       [[ \$image =~ \$plot_regex ]]; plot="\${BASH_REMATCH[1]}"
       [[ \$image =~ \$test_regex ]]; test="\${BASH_REMATCH[1]}"
       # set plot name for title
@@ -1371,7 +1371,7 @@ process visualisations {
       elif [ \$test == "logistic" ]; then
         tets="a logistic"
       fi
-      title="\$plot plot testing the phenotype \$phe using \$test test from PLINK"
+      title="\$plot plot using \$test test from PLINK"
       img2json.py "results/\${image}" "\$title" "\${prefix}.json"
       
     done
