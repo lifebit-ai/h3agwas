@@ -1237,14 +1237,11 @@ if (params.assoc+params.fisher+params.logistic+params.linear > 0) {
     set val(test), val(pheno_name), file(results) from out_ch.tap(log_out_ch)
     output:
     set file("${base}*man*png"), file ("${base}*qq*png"), file("C050*tex") into report_plink, viz
-    publishDir "${params.output_dir}", mode: 'copy', pattern: "*png"
     publishDir "${params.output_dir}/latex", mode: 'copy', pattern: "*tex"
     script:
       base="cleaned-${test}"
       """
       plinkDraw.py  C050 $base $test ${pheno_name} $gotcovar png
-      # rename plots to remove pheno from file name
-      for x in *.png;do mv \$x \${x%-*.png}.png;done
       """
   }
 
@@ -1337,6 +1334,7 @@ process doReport {
 
 process visualisations {
     publishDir "${params.output_dir}/Visualisations", mode: 'copy'
+    publishDir "${params.output_dir}", mode: 'copy', pattern: "*png"
 
     container 'lifebitai/vizjson:latest'
 
@@ -1349,6 +1347,9 @@ process visualisations {
 
     script:
     """
+    # rename plots to remove pheno from file name
+    for x in *.png;do mv \$x \${x%-*.png}.png;done
+
     ls *png > images.txt
     sed -i '/${pca}/d' images.txt
     plot_regex="cleaned-[a-z]+-[a-z]+-([a-z]+)"
