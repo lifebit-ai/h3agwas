@@ -1344,11 +1344,13 @@ process visualisations {
 
     output:
     file '.report.json' into results
+    file "*png" into out_plots 
 
     script:
     """
     # rename plots to remove pheno from file name
     for x in *.png;do mv \$x \${x%-*.png}.png;done
+    mv cleaned.png ${pca}
 
     ls *png > images.txt
     sed -i '/${pca}/d' images.txt
