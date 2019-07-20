@@ -1237,7 +1237,6 @@ if (params.assoc+params.fisher+params.logistic+params.linear > 0) {
     set val(test), val(pheno_name), file(results) from out_ch.tap(log_out_ch)
     output:
     set file("${base}*man*png"), file ("${base}*qq*png"), file("C050*tex") into report_plink, viz
-    publishDir "${params.output_dir}", mode: 'copy', pattern: "*png"
     publishDir "${params.output_dir}/latex", mode: 'copy', pattern: "*tex"
     script:
       base="cleaned-${test}"
@@ -1335,6 +1334,7 @@ process doReport {
 
 process visualisations {
     publishDir "${params.output_dir}/Visualisations", mode: 'copy'
+    publishDir "${params.output_dir}", mode: 'copy', pattern: "*png"
 
     container 'lifebitai/vizjson:latest'
 
@@ -1344,19 +1344,22 @@ process visualisations {
 
     output:
     file '.report.json' into results
+    file "*png" into out_plots 
 
     script:
     """
+    # rename plots to remove pheno from file name
+    for x in *.png;do mv \$x \${x%-*.png}.png;done
+    mv cleaned.png ${pca}
+
     ls *png > images.txt
     sed -i '/${pca}/d' images.txt
-    phe_regex="-([a-zA-Z]+).png"
-    plot_regex="cleaned-[a-z]+-([a-z]+)"
+    plot_regex="cleaned-[a-z]+-[a-z]+-([a-z]+)"
     test_regex="cleaned-([a-z]+)"
     for image in \$(cat images.txt); do
       prefix="\${image%.*}"
       pca=$pca
       pca_prefix="\${pca%.*}"
-      [[ \$image =~ \$phe_regex ]]; phe="\${BASH_REMATCH[1]}"
       [[ \$image =~ \$plot_regex ]]; plot="\${BASH_REMATCH[1]}"
       [[ \$image =~ \$test_regex ]]; test="\${BASH_REMATCH[1]}"
       # set plot name for title
@@ -1371,7 +1374,7 @@ process visualisations {
       elif [ \$test == "logistic" ]; then
         tets="a logistic"
       fi
-      title="\$plot plot testing the phenotype \$phe using \$test test from PLINK"
+      title="\$plot plot using \$test test from PLINK"
       img2json.py "results/\${image}" "\$title" "\${prefix}.json"
       
     done
