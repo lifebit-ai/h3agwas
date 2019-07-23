@@ -1350,9 +1350,9 @@ process visualisations {
     """
     # rename plots to remove pheno from file name
     for x in *.png;do
-      if [[ $x != ${pca} ]]; then
-        sub=$(echo $x | grep -Eo '[a-z]+-[a-z]+-[a-z]+-[a-z]+')
-        mv $x ${sub}.png;
+      if [[ \$x != ${pca} ]]; then
+        sub=\$(echo \$x | grep -Eo '[a-z]+-[a-z]+-[a-z]+-[a-z]+')
+        mv \$x \${sub}.png;
       fi
     done
 
