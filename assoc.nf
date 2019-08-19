@@ -1349,8 +1349,12 @@ process visualisations {
     script:
     """
     # rename plots to remove pheno from file name
-    for x in *.png;do mv \$x \${x%-*.png}.png;done
-    mv cleaned.png ${pca}
+    for x in *.png;do
+      if [[ \$x != ${pca} ]]; then
+        sub=\$(echo \$x | grep -Eo '[a-z]+-[a-z]+-[a-z]+-[a-z]+')
+        mv \$x \${sub}.png;
+      fi
+    done
 
     ls *png > images.txt
     sed -i '/${pca}/d' images.txt
