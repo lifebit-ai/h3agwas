@@ -391,7 +391,7 @@ if (!params.data && params.vcf) {
 } else if (params.vcf_file) {
    process file_preprocessing {
       publishDir 'results'
-      container 'lifebitai/preprocess_gwas:latest'
+      container 'lifebitai/preprocess_gwas:vcftools'
 
       input:
       file vcfs from testVcfs.collect()
@@ -408,6 +408,11 @@ if (!params.data && params.vcf) {
       for url in \$(echo \$urls); do
             vcf="\${url##*/}"
             sed -i -e "s~\$url~\$vcf~g" $vcf_file
+      done
+
+      # validate input VCF files
+      for vcf in \$(tail -n+2 $vcf_file | awk -F',' '{print \$2}'); do
+        vcf-validator \$vcf
       done
 
       # bgzip uncompressed vcfs
