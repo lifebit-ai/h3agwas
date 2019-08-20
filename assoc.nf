@@ -392,6 +392,7 @@ if (!params.data && params.vcf) {
    process file_preprocessing {
       publishDir 'results'
       container 'lifebitai/preprocess_gwas:vcftools'
+      echo true
 
       input:
       file vcfs from testVcfs.collect()
@@ -410,13 +411,25 @@ if (!params.data && params.vcf) {
             sed -i -e "s~\$url~\$vcf~g" $vcf_file
       done
 
+      # check number of individuals
+      n_individuals=\$(tail -n+2 $vcf_file |  wc -l)
+      if (( \$n_individuals < 2 )); then
+        echo "Number of invdividuals in only \${n_individuals}. It is not possible to perform a GWAS. Please include more individuals/VCFs in your input text file: $vcf_file"
+        exit 1
+      fi
+      if (( \$n_individuals < 100 )); then
+        echo -e "\033[33mWarning: Number of invdividuals in only \${n_individuals}. Consider including more individuals/VCFs in your input text file: $vcf_file\033[0m"
+      fi
+            
+      input_vcfs=\$(tail -n+2 $vcf_file | awk -F',' '{print \$2}')
+
       # validate input VCF files
-      for vcf in \$(tail -n+2 $vcf_file | awk -F',' '{print \$2}'); do
+      for vcf in \$input_vcfs; do
         vcf-validator \$vcf
       done
 
       # bgzip uncompressed vcfs
-      for vcf in \$(tail -n+2 $vcf_file | awk -F',' '{print \$2}'); do
+      for vcf in \$input_vcfs; do
             if [ \${vcf: -4} == ".vcf" ]; then
                   bgzip -c \$vcf > \${vcf}.gz
                   sed -i "s/\$vcf/\${vcf}.gz/g" $vcf_file 
