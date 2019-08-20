@@ -392,7 +392,6 @@ if (!params.data && params.vcf) {
    process file_preprocessing {
       publishDir 'results'
       container 'lifebitai/preprocess_gwas:vcftools'
-      echo true
 
       input:
       file vcfs from testVcfs.collect()
@@ -413,7 +412,7 @@ if (!params.data && params.vcf) {
 
       # check number of individuals
       n_individuals=\$(tail -n+2 $vcf_file |  wc -l)
-      if (( \$n_individuals < 2 )); then
+      if (( \$n_individuals < 3 )); then
         echo "Number of invdividuals in only \${n_individuals}. It is not possible to perform a GWAS. Please include more individuals/VCFs in your input text file: $vcf_file"
         exit 1
       fi
