@@ -410,22 +410,17 @@ if (!params.data && params.vcf) {
             sed -i -e "s~\$url~\$vcf~g" $vcf_file
       done
 
-      # check number of individuals
-      n_individuals=\$(tail -n+2 $vcf_file |  wc -l)
-      if (( \$n_individuals < 3 )); then
-        echo "Number of invdividuals in only \${n_individuals}. It is not possible to perform a GWAS. Please include more individuals/VCFs in your input text file: $vcf_file"
+      # check number of input individuals/VCF files
+      n_vcfs=\$(tail -n+2 $vcf_file | grep -c "vcf")
+      if (( \$n_vcfs < 3 )); then
+        echo "Number of individuals in only \${n_vcfs}. It is not possible to perform a GWAS. Please include more individuals/VCFs in your input text file: $vcf_file"
         exit 1
       fi
-      if (( \$n_individuals < 100 )); then
-        echo -e "\033[33mWarning: Number of invdividuals in only \${n_individuals}. Consider including more individuals/VCFs in your input text file: $vcf_file\033[0m"
+      if (( \$n_vcfs < 100 )); then
+        echo -e "\033[33mWarning: Number of individuals in only \${n_vcfs}. Consider including more individuals/VCFs in your input text file: $vcf_file\033[0m"
       fi
             
       input_vcfs=\$(tail -n+2 $vcf_file | awk -F',' '{print \$2}')
-
-      # validate input VCF files
-      for vcf in \$input_vcfs; do
-        vcf-validator \$vcf
-      done
 
       # bgzip uncompressed vcfs
       for vcf in \$input_vcfs; do
@@ -457,6 +452,9 @@ if (!params.data && params.vcf) {
       make_fam2.py $vcf_file
       vcfs=\$(tail -n+2 $vcf_file | awk -F',' '{print \$3}')
       bcftools merge --force-samples \$vcfs > merged.vcf
+
+      # validate merged VCF file
+      vcf-validator merged.vcf
       """
   }
 }
