@@ -5,7 +5,8 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev
 
 # Install R dependencies
-RUN Rscript -e "install.packages('manhattanly')" && \
+RUN Rscript -e "install.packages('qqman')" && \
+    Rscript -e "install.packages('manhattanly')" && \
     Rscript -e "install.packages('plotly')"
 
 # Install plink
