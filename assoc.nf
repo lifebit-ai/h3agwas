@@ -436,12 +436,16 @@ if (!params.data && params.vcf) {
         done
 
         # remove VCF files which failed input validation
-        failed_vcfs=\$(ls *.err)
-        failed_vcfs=\${failed_vcfs//.err/}
-        for vcf in \$failed_vcfs; do
-          grep \$vcf $vcf_file
-          sed -i "/\$vcf/d" $vcf_file
-        done
+        { # try
+          failed_vcfs=\$(ls *.err)
+          failed_vcfs=\${failed_vcfs//.err/}
+          for vcf in \$failed_vcfs; do
+            grep \$vcf $vcf_file
+            sed -i "/\$vcf/d" $vcf_file
+          done
+        } || { # catch
+          echo "All input VCFs are valid"
+        }
       fi
 
       # bgzip uncompressed vcfs
