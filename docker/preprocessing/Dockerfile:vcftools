@@ -1,0 +1,22 @@
+# Base Image
+FROM lifebitai/preprocess_gwas:latest
+
+ENV ZIP=vcftools-0.1.15.tar.gz
+ENV URL=https://github.com/vcftools/vcftools/releases/download/v0.1.15/
+ENV FOLDER=vcftools-0.1.15
+ENV DST=/tmp
+
+RUN apt-get update && apt-get install -y tabix
+
+RUN wget $URL/$ZIP -O $DST/$ZIP && \
+  tar xvf $DST/$ZIP -C $DST && \
+  rm $DST/$ZIP && \
+  cd $DST/$FOLDER && \
+  ./configure && \
+  make && \
+  make install && \
+  cd / && \
+  rm -rf $DST/$FOLDER
+
+RUN wget https://github.com/vcftools/vcftools/blob/master/examples/floats.vcf && \
+    vcftools --vcf floats.vcf && rm floats.vcf
