@@ -422,6 +422,28 @@ if (!params.data && params.vcf) {
             
       input_vcfs=\$(tail -n+2 $vcf_file | awk -F',' '{print \$2}')
 
+      # validate VCFs
+      if [[ "${params.validate_vcfs}" == "true" ]]; then
+        # validate input VCF files (if input validation failed save exit code to a file)
+        for vcf in \$input_vcfs; do
+          { # try
+            vcf-validator \$vcf 2> /dev/null
+          } || { # catch
+            if [[ \$(echo \$?) != "0" ]]; then
+              echo \$? > \${vcf}.err
+            fi 
+          }
+        done
+
+        # remove VCF files which failed input validation
+        failed_vcfs=\$(ls *.err)
+        failed_vcfs=\${failed_vcfs//.err/}
+        for vcf in \$failed_vcfs; do
+          grep \$vcf $vcf_file
+          sed -i "/\$vcf/d" $vcf_file
+        done
+      fi
+
       # bgzip uncompressed vcfs
       for vcf in \$input_vcfs; do
             if [ \${vcf: -4} == ".vcf" ]; then
@@ -452,9 +474,6 @@ if (!params.data && params.vcf) {
       make_fam2.py $vcf_file
       vcfs=\$(tail -n+2 $vcf_file | awk -F',' '{print \$3}')
       bcftools merge --force-samples \$vcfs > merged.vcf
-
-      # validate merged VCF file
-      vcf-validator merged.vcf
       """
   }
 }
