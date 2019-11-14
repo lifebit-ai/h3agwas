@@ -391,7 +391,7 @@ if (!params.data && params.vcf) {
 } else if (params.vcf_file) {
    process file_preprocessing {
       publishDir 'results'
-      container 'lifebitai/preprocess_gwas:vcftools'
+      container 'lifebitai/preprocess_gwas:latest'
 
       input:
       file vcfs from testVcfs.collect()
@@ -410,42 +410,8 @@ if (!params.data && params.vcf) {
             sed -i -e "s~\$url~\$vcf~g" $vcf_file
       done
 
-      # check number of input individuals/VCF files
-      n_vcfs=\$(tail -n+2 $vcf_file | grep -c "vcf")
-      if (( \$n_vcfs < 3 )); then
-        echo "Number of individuals in only \${n_vcfs}. It is not possible to perform a GWAS. Please include more individuals/VCFs in your input text file: $vcf_file"
-        exit 1
-      fi
-      if (( \$n_vcfs < 100 )); then
-        echo -e "\033[33mWarning: Number of individuals in only \${n_vcfs}. Consider including more individuals/VCFs in your input text file: $vcf_file\033[0m"
-      fi
-            
-      input_vcfs=\$(tail -n+2 $vcf_file | awk -F',' '{print \$2}')
-
-      # validate VCFs
-      if [[ "${params.validate_vcfs}" == "true" ]]; then
-        # validate input VCF files (if input validation failed save exit code to a file)
-        for vcf in \$input_vcfs; do
-          { # try
-            vcf-validator \$vcf 2> /dev/null
-          } || { # catch
-            if [[ \$(echo \$?) != "0" ]]; then
-              echo \$? > \${vcf}.err
-            fi 
-          }
-        done
-
-        # remove VCF files which failed input validation
-        failed_vcfs=\$(ls *.err)
-        failed_vcfs=\${failed_vcfs//.err/}
-        for vcf in \$failed_vcfs; do
-          grep \$vcf $vcf_file
-          sed -i "/\$vcf/d" $vcf_file
-        done
-      fi
-
       # bgzip uncompressed vcfs
-      for vcf in \$input_vcfs; do
+      for vcf in \$(tail -n+2 $vcf_file | awk -F',' '{print \$2}'); do
             if [ \${vcf: -4} == ".vcf" ]; then
                   bgzip -c \$vcf > \${vcf}.gz
                   sed -i "s/\$vcf/\${vcf}.gz/g" $vcf_file 
