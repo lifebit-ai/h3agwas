@@ -517,7 +517,7 @@ if (params.vcf_file) {
         if (filename == 'manhattan_plot.png') "manhattan_plot/$filename"
         else "plots/$filename"
     }
-    container 'lifebitai/manhattan:latest'
+    container 'lifebitai/manhattan:1.0'
 
     input:
     set file(bed), file(bim), file(fam) from raw_src_ch2
@@ -528,6 +528,7 @@ if (params.vcf_file) {
     file("*") into manhattan
 
     script:
+    // TODO: output annotation.csv, *.png into channel for visualisations
     """
     plink --bed $bed --bim $bim --fam $fam --pheno $phe --pheno-name $params.pheno --assoc --out out
     manhattan_plot.R *assoc $annotation
