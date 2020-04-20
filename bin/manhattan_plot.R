@@ -1,16 +1,28 @@
 #!/usr/bin/env Rscript
 
 library(qqman)
-# library(manhattanly)
-# library(plotly)
+library(manhattanly)
+library(plotly)
 
 args = commandArgs(trailingOnly=TRUE)
 assoc_file <- args[1] # eg "out.assoc"
+assoc <- read.table(assoc_file, quote="\"", comment.char="", header=T)
+
+###############
+### manhattanly
+###############
+
+plot <- manhattanly(assoc, snp="SNP", chr="CHR")
+htmlwidgets::saveWidget(as.widget(plot), "multiqc_report.html")
+
+###############
+### qqman
+###############
+
 sig = 5e-8 # significant threshold line
 sugg = 1e-6 # suggestive threshold line
 blues.c <- c("#6E65C2", "#4D43AE", "#3226A6", "#211785", "#150D69")
 
-assoc <- read.table(assoc_file, quote="\"", comment.char="", header=T)
 assoc <- assoc[!is.na(assoc$P),]
 
 # subset
