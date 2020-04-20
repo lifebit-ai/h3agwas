@@ -507,7 +507,7 @@ if(params.vcf || params.vcf_file){
 
 if (params.vcf_file) {
   process manhattan_plot {
-    publishDir "${params.output_dir}/manhattan_plot", mode: 'copy'
+    publishDir "${params.output_dir}/MultiQC", mode: 'copy'
     container 'lifebitai/manhattan:latest'
 
     input:
