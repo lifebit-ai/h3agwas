@@ -41,6 +41,10 @@ if (params.vcf_file) {
         .map{ row -> [file(row.vcf)] }
         .set { testVcfs }
 }
+Channel
+  .fromPath(params.annotation)
+  .ifEmpty { exit 1, "Cannot find annotation file: ${params.gtf}" }
+  .set { annotation }
 
 // read in JSON file & create FAM file
 if (params.vcf && params.data) {
@@ -510,13 +514,15 @@ if (params.vcf_file) {
     publishDir "${params.output_dir}", mode: 'copy',
     saveAs: {filename ->
         if (filename == 'multiqc_report.html') "MultiQC/$filename"
-        else "manhattan_plot/$filename"
+        if (filename == 'manhattan_plot.png') "manhattan_plot/$filename"
+        else "plots/$filename"
     }
     container 'lifebitai/manhattan:latest'
 
     input:
     set file(bed), file(bim), file(fam) from raw_src_ch2
     file phe from data_ch3
+    file annotation from annotation
 
     output:
     file("*") into manhattan
@@ -524,7 +530,7 @@ if (params.vcf_file) {
     script:
     """
     plink --bed $bed --bim $bim --fam $fam --pheno $phe --pheno-name $params.pheno --assoc --out out
-    manhattan_plot.R *assoc
+    manhattan_plot.R *assoc $annotation
     """
   }
 }

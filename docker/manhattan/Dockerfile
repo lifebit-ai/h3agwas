@@ -7,7 +7,9 @@ RUN apt-get update && apt-get install -y \
 # Install R dependencies
 RUN Rscript -e "install.packages('qqman')" && \
     Rscript -e "install.packages('manhattanly')" && \
-    Rscript -e "install.packages('plotly')"
+    Rscript -e "install.packages('plotly')" && \
+    Rscript -e "install.packages('tidyverse')" && \
+    Rscript -e "install.packages('CMplot')"
 
 # Install plink
 RUN mkdir /plink && \
