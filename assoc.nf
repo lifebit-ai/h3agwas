@@ -514,7 +514,7 @@ if (params.vcf_file) {
     publishDir "${params.output_dir}", mode: 'copy',
     saveAs: {filename ->
         if (filename == 'multiqc_report.html') "MultiQC/$filename"
-        if (filename == 'manhattan_plot.png') "manhattan_plot/$filename"
+        else if (filename == 'manhattan_plot.png') "manhattan_plot/$filename"
         else "plots/$filename"
     }
     container 'lifebitai/manhattan:1.0'
