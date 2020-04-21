@@ -114,11 +114,11 @@ volcano <- ggplotly(p1, tooltip="text", width = 1400, height = 1200)
 qqplot <- qqly(gwas_plot %>% filter(P > 0), main= "QQ plot", snp="SNP", gene = "Gene", width = 1400, height = 1200)
 
 # Plotting 
-sub1 <- plotly::subplot(volcano, qqplot)
+sub1 <- plotly::subplot(volcano, qqplot, titleX = T, shareX = F, titleY = T, shareY = F)
 
 #plotly::subplot(sub1,manhattan, table, nrows = 2, titleX = T, titleY = T)
 
-main_plot <- plotly::subplot(sub1, manhattan, nrows = 2, titleX = T, titleY = T) %>%
+main_plot <- plotly::subplot(sub1, manhattan, nrows = 2, titleX = T, shareX = F, titleY = T, shareY = F) %>%
   plotly::layout(title = "Manhattan, Volcano and QQ plots")#, height=(700))
 
 # Annotation table
