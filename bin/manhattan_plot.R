@@ -42,6 +42,8 @@ print(manhattan(assoc,
 ### Plotly for Manhattan + QQ 
 ##############################
 
+# Test to update markers to UKB
+
 annotation <- read.csv(annot_file, stringsAsFactors = F)
 geno <- annotation %>% select(c(rsid, Gene, Function))  %>%
   mutate_at(vars(Function), list(~ifelse(.=="NA", "intergenic",.)))
@@ -67,7 +69,7 @@ axisdf <- gwas_plot %>% group_by(CHR) %>% summarize(center=( max(BPcum) + min(BP
 
 # Prepare text description for each SNP:
 gwas_plot$text <- paste("SNP: ", gwas_plot$SNP, "\nPosition: ", gwas_plot$BP, "\nChromosome: ", gwas_plot$CHR, "\nREF: ", gwas_plot$A1, "\nALT: ", gwas_plot$A2,
-                        "\nFunction: ",gwas_plot$Function,"\nMAF: ", gwas_plot$F_A, sprintf("\nP-value: %2e", round(gwas_plot$P,3)),
+                        "\nFunction: ",gwas_plot$Function,"\nMAF: ", gwas_plot$F_A, sprintf("\nP-value: %.2e", gwas_plot$P),
                         "\nGene: ",gwas_plot$Gene, "\nOdds Ratio: ", gwas_plot$OR, sep="")
 
 # Manhattan
@@ -86,8 +88,6 @@ p <- ggplot(gwas_plot, aes(x=BPcum, y=-log10(P), text=text)) +
     panel.grid.minor.x = element_blank()
   )
 
-manhattan <- ggplotly(p, tooltip="text")
-
 # Volcano
 p1 <-ggplot(gwas_plot, aes(x=OR, y=-log10(P), text=text)) +
   geom_point(aes(colour=volcano_threshold), alpha=0.8, size=1.3) +
@@ -105,58 +105,44 @@ p1 <-ggplot(gwas_plot, aes(x=OR, y=-log10(P), text=text)) +
     panel.border = element_blank(),
   )
 
-volcano <- ggplotly(p1, tooltip="text")
+manhattan <- ggplotly(p, tooltip="text", width = 1400, height = 1200)
 
-qqplot <- qqly(gwas_plot %>% filter(P > 0), main= "QQ plot", snp="SNP", gene = "Gene")
+volcano <- ggplotly(p1, tooltip="text", width = 1400, height = 1200)
 
-#qqly(HapMap, snp = "SNP", gene = "GENE")
+# qqplot <- qq(gwas_plot$P) # NOT INTERACTIVE
 
-# Annotation table
-top_markers <- gwas_plot %>% dplyr::arrange(P) %>% slice(1:500) %>% select(SNP)
-annotation_top <- annotation %>% select(
-  Location,rsid,Reference,Alternative,Gene,Function,SIFT.Effect,Polyphen2_HDIV.Effect,MutationTaster.Effect, CADD.Score,
-  gnomAD.AF.All, gnomAD.AF.NFE) %>% filter(rsid %in% top_markers$SNP)
-
-table <- plot_ly(
-  type = 'table',
-  header = list(
-    columnwidth = c(80,600),
-    values = c(names(annotation_top)),
-    align = c('left', rep('center', ncol(annotation_top))),
-    line = list(width = 1, color = 'black'),
-    fill = list(color = 'rgb(235, 100, 230)'),
-    font = list(family = "Arial", size = 14, color = "white")
-  ),
-  cells = list(
-    values = rbind(
-      rownames(annotation_top),
-      t(as.matrix(unname(annotation_top)))
-    ),
-    align = c('left', rep('center', ncol(annotation_top))),
-    line = list(color = "black", width = 1),
-    fill = list(color = c('rgb(235, 193, 238)', 'rgba(228, 222, 249, 0.65)')),
-    font = list(family = "Arial", size = 12, color = c("black")),
-    domain = list(x=c(0,0.5), y=c(0,1))
-  ))
+qqplot <- qqly(gwas_plot %>% filter(P > 0), main= "QQ plot", snp="SNP", gene = "Gene", width = 1400, height = 1200)
 
 # Plotting 
-plotly::subplot(manhattan, volcano, qqplot, nrows = 3, margin = 0.1, titleX = T, titleY = T) %>%
-  layout(title = "Manhattan, Volcano and QQ plots")#, height=(700))
+sub1 <- plotly::subplot(volcano, qqplot)
 
-main_plot <- plotly::subplot(manhattan, volcano, qqplot, nrows = 3, margin = 0.1, titleX = T, titleY = T, heights = c(0.4,0.3,0.2)) %>%
-  layout(title = "Manhattan, Volcano and QQ plots")#, height=(700))
+#plotly::subplot(sub1,manhattan, table, nrows = 2, titleX = T, titleY = T)
+
+main_plot <- plotly::subplot(sub1, manhattan, nrows = 2, titleX = T, titleY = T) %>%
+  plotly::layout(title = "Manhattan, Volcano and QQ plots")#, height=(700))
+
+# Annotation table
+annotation_top <- annotation %>% left_join(., gwas_plot %>% select(SNP,P), by =c("rsid"="SNP")) %>%
+  # select( Location,rsid,Reference,Alternative, P, Gene,Function, AA.Change, SIFT.Effect,Polyphen2_HDIV.Effect,MutationTaster.Effect, CADD.Score,gnomAD.AF.All, gnomAD.AF.NFE) %>%
+  mutate_all(list(~replace_na(.,"")))  %>% dplyr::arrange(P) %>% distinct(rsid,.keep_all = T) %>%
+  select(
+    rsid,Chromosome,Location,Reference,Alternative,Function,Gene,Gene.function,GWAS.catalogue.hits,Pathway,P,AA.Change,Clinvar.Publication, Clinvar.Pathogenicity, Clinvar,
+    SIFT.Effect,SIFT.Score,Polyphen2.HDIV.Effect,Polyphen2.HDIV.Score,Polyphen2.HVAR.Effect,Polyphen2.HVAR.Score,
+    MutationTaster.Effect,MutationTaster.Score,MutationAssessor.Effect,MutationAssessor.Score,CADD.Score,Vertebrate.Conserved, Mammalian.Conversed,
+    gnomAD.AF.All, gnomAD.AF.AFR, gnomAD.AF.AMR,gnomAD.AF.ASJ,gnomAD.AF.EAS,gnomAD.AF.FIN,gnomAD.AF.NFE,gnomAD.AF.OTH                
+    
+  )
+
+colnames(annotation_top) <- c(
+  "rsid","Chromosome","Location","Reference","Alternative","Function","Gene","Gene function","GWAS catalogue hits","Pathway","P","AA Change","Clinvar Publication", "Clinvar Pathogenicity", "Clinvar",
+  "SIFT Effect","SIFT Score","Polyphen2 HDIV Effect","Polyphen2 HDIV Score","Polyphen2 HVAR Effect","Polyphen2 HVAR Score",
+  "MutationTaster Effect","MutationTaster Score","MutationAssessor Effect","MutationAssessor Score","CADD Score","Vertebrate Conserved", "Mammalian Conversed",
+  "gnomAD AF All", "gnomAD AF AFR", "gnomAD AF AMR","gnomAD AF ASJ","gnomAD AF EAS","gnomAD AF FIN","gnomAD AF NFE","gnomAD AF OTH"
+)
+
+write.csv(annotation_top,"annotation_top_markers.csv", quote = F, row.names = F)
 
 htmlwidgets::saveWidget(as.widget(main_plot), "multiqc_report.html")
-htmlwidgets::saveWidget(as.widget(table), "annotated_table.html")
-
-# Table annotated to display
-write.table(annotation,  
-            file      = 'annotation.csv',
-            append    = FALSE, 
-            quote     = FALSE, 
-            sep       = ",",
-            row.names = F,
-            col.names = T)
 
 # Make circular plot
 CMplot(gwasResults, plot.type="c", r=1.6, cir.legend=TRUE,
