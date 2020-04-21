@@ -1427,7 +1427,7 @@ process visualisations {
     done
 
     csv2json.py $annot_table "Annotated Top Markers" ${annot_table.baseName}.json
-    img2json.py "results/${pca}" "Principal Components Analysis" ${pca.baseName}.json
+    img2json.py "results/${pca}" "Principal Components Analysis" 1_pca.json
     combine_reports.py .
     """
 }
