@@ -1405,7 +1405,7 @@ process visualisations {
     publishDir "${params.output_dir}/Visualisations", mode: 'copy'
     publishDir "${params.output_dir}", mode: 'copy', pattern: "*png"
 
-    container 'lifebitai/vizjson:latest'
+    container 'lifebitai/vizjson:1.0'
 
     input:
     file plots from viz.collect()
@@ -1427,7 +1427,7 @@ process visualisations {
     done
 
     csv2json.py $annot_table "Annotated Top Markers" ${annot_table.baseName}.json
-    img2json.py "results/${pca}" "Principal Components Analysis" 1_pca.json
+    img2json.py "results/${pca}" "Principal Components Analysis" ${pca.baseName}.json
     combine_reports.py .
     """
 }
