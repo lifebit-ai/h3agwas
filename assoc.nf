@@ -1426,35 +1426,8 @@ process visualisations {
       fi
     done
 
-    ls *png > images.txt
-    sed -i '/${pca}/d' images.txt
-    plot_regex="cleaned-[a-z]+-[a-z]+-([a-z]+)"
-    test_regex="cleaned-([a-z]+)"
-    for image in \$(cat images.txt); do
-      prefix="\${image%.*}"
-      pca=$pca
-      pca_prefix="\${pca%.*}"
-      [[ \$image =~ \$plot_regex ]]; plot="\${BASH_REMATCH[1]}"
-      [[ \$image =~ \$test_regex ]]; test="\${BASH_REMATCH[1]}"
-      # set plot name for title
-      if [[ \$plot == "man" ]]; then
-        plot="Manhattan"
-      elif [ \$plot == "qq" ]; then
-        plot="QQ"
-      fi
-      # set test name for title
-      if [[ \$test == "assoc" ]]; then
-        test="an association"
-      elif [ \$test == "logistic" ]; then
-        tets="a logistic"
-      fi
-      title="\$plot plot using \$test test from PLINK"
-      img2json.py "results/\${image}" "\$title" "\${prefix}.json"
-      
-    done
-
     csv2json.py $annot_table "Annotated Top Markers" ${annot_table.baseName}.json
-    img2json.py "results/${pca}" "Principal Components Analysis" "\${pca_prefix}.json"
+    img2json.py "results/${pca}" "Principal Components Analysis" ${pca.baseName}.json
     combine_reports.py .
     """
 }
