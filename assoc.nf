@@ -526,9 +526,9 @@ if (params.vcf_file) {
 
     output:
     file("*") into manhattan
+    file("*.csv") into annot_table
 
     script:
-    // TODO: output annotation.csv, *.png into channel for visualisations
     """
     plink --bed $bed --bim $bim --fam $fam --pheno $phe --pheno-name $params.pheno --assoc --out out
     manhattan_plot.R *assoc $annotation
@@ -1410,6 +1410,7 @@ process visualisations {
     input:
     file plots from viz.collect()
     file pca from pca_viz
+    file annot_table from annot_table
 
     output:
     file '.report.json' into results
@@ -1451,6 +1452,8 @@ process visualisations {
       img2json.py "results/\${image}" "\$title" "\${prefix}.json"
       
     done
+
+    csv2json.py $annot_table "Annotated Top Markers" ${annot_table.baseName}.json
     img2json.py "results/${pca}" "Principal Components Analysis" "\${pca_prefix}.json"
     combine_reports.py .
     """
