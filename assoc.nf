@@ -1374,7 +1374,6 @@ def getres(x) {
   return res.trim()
 }
 
-nextflowversion =getres("/home/ec2-user/nextflow -v")
 if (workflow.repository)
   wflowversion="${workflow.repository} --- ${workflow.revision} [${workflow.commitId}]"
 else
