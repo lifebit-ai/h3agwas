@@ -1374,6 +1374,7 @@ def getres(x) {
   return res.trim()
 }
 
+nextflowversion = ""
 if (workflow.repository)
   wflowversion="${workflow.repository} --- ${workflow.revision} [${workflow.commitId}]"
 else
